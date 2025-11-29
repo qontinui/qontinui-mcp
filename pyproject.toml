@@ -1,0 +1,45 @@
+[tool.poetry]
+name = "qontinui-mcp"
+version = "0.1.0"
+description = "MCP server for Qontinui visual automation - enables AI-powered workflow generation and execution"
+authors = ["Qontinui Team"]
+license = "MIT"
+readme = "README.md"
+packages = [{include = "qontinui_mcp", from = "src"}]
+
+[tool.poetry.scripts]
+qontinui-mcp = "qontinui_mcp.server:main"
+
+[tool.poetry.dependencies]
+python = "^3.12"
+mcp = "^1.0.0"
+pydantic = "^2.0.0"
+
+[tool.poetry.group.dev.dependencies]
+black = "^24.0.0"
+isort = "^5.13.0"
+ruff = "^0.1.0"
+mypy = "^1.8.0"
+pytest = "^8.0.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.black]
+line-length = 88
+target-version = ["py312"]
+
+[tool.isort]
+profile = "black"
+line_length = 88
+
+[tool.ruff]
+line-length = 88
+target-version = "py312"
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+warn_return_any = true
+warn_unused_ignores = true
