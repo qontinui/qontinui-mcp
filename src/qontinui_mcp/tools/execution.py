@@ -6,7 +6,6 @@ automation scripts, capture screenshots, and verify states.
 
 from __future__ import annotations
 
-import base64
 import logging
 import time
 from dataclasses import dataclass, field

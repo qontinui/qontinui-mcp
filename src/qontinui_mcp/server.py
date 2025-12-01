@@ -13,7 +13,7 @@ from typing import Any
 
 from mcp.server import Server
 from mcp.server.stdio import stdio_server
-from mcp.types import Tool, TextContent
+from mcp.types import TextContent, Tool
 
 from qontinui_mcp.database.loader import get_node, initialize_database
 from qontinui_mcp.database.search import (
@@ -498,12 +498,15 @@ async def run_server() -> None:
     """Run the MCP server."""
     logger.info("Starting Qontinui MCP Server...")
     async with stdio_server() as (read_stream, write_stream):
-        await server.run(read_stream, write_stream, server.create_initialization_options())
+        await server.run(
+            read_stream, write_stream, server.create_initialization_options()
+        )
 
 
 def main() -> None:
     """Entry point."""
     import asyncio
+
     asyncio.run(run_server())
 
 

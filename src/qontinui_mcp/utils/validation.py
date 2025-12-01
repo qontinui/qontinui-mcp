@@ -4,7 +4,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from pydantic import BaseModel, ValidationError as PydanticValidationError
+from pydantic import BaseModel
+from pydantic import ValidationError as PydanticValidationError
 
 from qontinui_mcp.types.models import ActionConfig, ActionType, Workflow
 
@@ -44,66 +45,84 @@ def validate_workflow_structure(workflow: dict[str, Any]) -> WorkflowValidationR
     try:
         wf = Workflow.model_validate(workflow)
     except PydanticValidationError as e:
-        errors.append(ValidationError(
-            field="schema",
-            message=str(e),
-            code="INVALID_SCHEMA",
-        ))
+        errors.append(
+            ValidationError(
+                field="schema",
+                message=str(e),
+                code="INVALID_SCHEMA",
+            )
+        )
         return WorkflowValidationResult(valid=False, errors=errors)
 
     # 2. Check for empty steps
     if len(wf.steps) == 0:
-        errors.append(ValidationError(
-            field="steps",
-            message="Workflow must have at least one step",
-            code="EMPTY_WORKFLOW",
-        ))
+        errors.append(
+            ValidationError(
+                field="steps",
+                message="Workflow must have at least one step",
+                code="EMPTY_WORKFLOW",
+            )
+        )
         return WorkflowValidationResult(valid=False, errors=errors)
 
     # 3. Validate step IDs are unique
     step_ids: set[str] = set()
     for step in wf.steps:
         if step.id in step_ids:
-            errors.append(ValidationError(
-                field=f"steps.{step.id}",
-                message=f"Duplicate step ID: {step.id}",
-                code="DUPLICATE_STEP_ID",
-            ))
+            errors.append(
+                ValidationError(
+                    field=f"steps.{step.id}",
+                    message=f"Duplicate step ID: {step.id}",
+                    code="DUPLICATE_STEP_ID",
+                )
+            )
         step_ids.add(step.id)
 
     # 4. Validate step connections (on_success, on_failure)
     for step in wf.steps:
         if step.on_success and step.on_success not in step_ids:
-            errors.append(ValidationError(
-                field=f"steps.{step.id}.on_success",
-                message=f"on_success references non-existent step: {step.on_success}",
-                code="INVALID_CONNECTION",
-            ))
-        if step.on_failure and step.on_failure != "exit" and step.on_failure not in step_ids:
-            errors.append(ValidationError(
-                field=f"steps.{step.id}.on_failure",
-                message=f"on_failure references non-existent step: {step.on_failure}",
-                code="INVALID_CONNECTION",
-            ))
+            errors.append(
+                ValidationError(
+                    field=f"steps.{step.id}.on_success",
+                    message=f"on_success references non-existent step: {step.on_success}",
+                    code="INVALID_CONNECTION",
+                )
+            )
+        if (
+            step.on_failure
+            and step.on_failure != "exit"
+            and step.on_failure not in step_ids
+        ):
+            errors.append(
+                ValidationError(
+                    field=f"steps.{step.id}.on_failure",
+                    message=f"on_failure references non-existent step: {step.on_failure}",
+                    code="INVALID_CONNECTION",
+                )
+            )
 
     # 5. Detect cycles in workflow graph
     cycles = _detect_cycles(wf.steps)
     for cycle in cycles:
-        errors.append(ValidationError(
-            field="workflow",
-            message=f"Cycle detected: {' -> '.join(cycle)}",
-            code="CYCLE_DETECTED",
-        ))
+        errors.append(
+            ValidationError(
+                field="workflow",
+                message=f"Cycle detected: {' -> '.join(cycle)}",
+                code="CYCLE_DETECTED",
+            )
+        )
 
     # 6. Check for unreachable steps
     reachable_steps = _find_reachable_steps(wf.steps)
     for step in wf.steps:
         if step.id not in reachable_steps:
-            warnings.append(ValidationError(
-                field=f"steps.{step.id}",
-                message=f"Step is unreachable: {step.id}",
-                code="UNREACHABLE_STEP",
-            ))
+            warnings.append(
+                ValidationError(
+                    field=f"steps.{step.id}",
+                    message=f"Step is unreachable: {step.id}",
+                    code="UNREACHABLE_STEP",
+                )
+            )
 
     # 7. Validate action types exist
     valid_action_types = {at.value for at in ActionType}
@@ -111,11 +130,13 @@ def validate_workflow_structure(workflow: dict[str, Any]) -> WorkflowValidationR
         action_type = step.action.type
         type_value = action_type.value if hasattr(action_type, "value") else action_type
         if type_value not in valid_action_types:
-            errors.append(ValidationError(
-                field=f"steps.{step.id}.action.type",
-                message=f"Invalid action type: {type_value}",
-                code="INVALID_ACTION_TYPE",
-            ))
+            errors.append(
+                ValidationError(
+                    field=f"steps.{step.id}.action.type",
+                    message=f"Invalid action type: {type_value}",
+                    code="INVALID_ACTION_TYPE",
+                )
+            )
 
     return WorkflowValidationResult(
         valid=len(errors) == 0,
@@ -187,7 +208,11 @@ def _find_reachable_steps(steps: list[Any]) -> set[str]:
         if step:
             if step.on_success and step.on_success not in reachable:
                 queue.append(step.on_success)
-            if step.on_failure and step.on_failure != "exit" and step.on_failure not in reachable:
+            if (
+                step.on_failure
+                and step.on_failure != "exit"
+                and step.on_failure not in reachable
+            ):
                 queue.append(step.on_failure)
 
     return reachable

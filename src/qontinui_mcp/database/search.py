@@ -9,9 +9,7 @@ import sqlite3
 logger = logging.getLogger(__name__)
 
 
-def search_nodes(
-    conn: sqlite3.Connection, query: str, limit: int = 10
-) -> list[dict]:
+def search_nodes(conn: sqlite3.Connection, query: str, limit: int = 10) -> list[dict]:
     """Search for nodes using FTS5."""
     logger.debug(f"Searching nodes for: {query}")
 
@@ -51,11 +49,13 @@ def search_nodes(
         if "<mark>" in highlighted_description:
             matched_fields.append("description")
 
-        results.append({
-            "node": node,
-            "score": abs(rank),  # FTS5 rank is negative, lower is better
-            "matched_fields": matched_fields,
-        })
+        results.append(
+            {
+                "node": node,
+                "score": abs(rank),  # FTS5 rank is negative, lower is better
+                "matched_fields": matched_fields,
+            }
+        )
 
     return results
 
@@ -101,11 +101,13 @@ def search_workflows(
         if "<mark>" in highlighted_description:
             matched_fields.append("description")
 
-        results.append({
-            "workflow": workflow,
-            "score": abs(rank),
-            "matched_fields": matched_fields,
-        })
+        results.append(
+            {
+                "workflow": workflow,
+                "score": abs(rank),
+                "matched_fields": matched_fields,
+            }
+        )
 
     return results
 
@@ -121,9 +123,7 @@ def search_nodes_by_category(conn: sqlite3.Connection, category: str) -> list[di
     return [_parse_node_row(row) for row in rows]
 
 
-def search_workflows_by_category(
-    conn: sqlite3.Connection, category: str
-) -> list[dict]:
+def search_workflows_by_category(conn: sqlite3.Connection, category: str) -> list[dict]:
     """Search workflows by category."""
     cursor = conn.cursor()
     cursor.execute(

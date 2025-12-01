@@ -52,7 +52,11 @@ def load_nodes(conn: sqlite3.Connection, nodes: list[NodeMetadata]) -> None:
                 node.name,
                 node.category,
                 node.description,
-                node.action_type.value if hasattr(node.action_type, "value") else node.action_type,
+                (
+                    node.action_type.value
+                    if hasattr(node.action_type, "value")
+                    else node.action_type
+                ),
                 json.dumps([p.model_dump() for p in node.parameters]),
                 json.dumps(node.examples or []),
                 json.dumps(node.tags or []),

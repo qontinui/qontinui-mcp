@@ -15,7 +15,6 @@ from datetime import datetime
 from typing import Any
 
 from qontinui_mcp.database.search import search_nodes
-from qontinui_mcp.types.models import ActionType
 from qontinui_mcp.utils.validation import validate_workflow_structure
 
 logger = logging.getLogger(__name__)
@@ -222,19 +221,19 @@ class WorkflowGenerator:
 
         return workflow
 
-    def _find_relevant_actions(
-        self, intent: WorkflowIntent
-    ) -> list[dict[str, Any]]:
+    def _find_relevant_actions(self, intent: WorkflowIntent) -> list[dict[str, Any]]:
         """Find relevant action nodes for the intent."""
         actions: list[dict[str, Any]] = []
 
         for keyword in intent.action_keywords:
             results = search_nodes(self.conn, keyword, 3)
             for result in results:
-                actions.append({
-                    "action": result["node"]["action_type"],
-                    "score": result["score"],
-                })
+                actions.append(
+                    {
+                        "action": result["node"]["action_type"],
+                        "score": result["score"],
+                    }
+                )
 
         # Deduplicate and sort by score
         seen: set[str] = set()
