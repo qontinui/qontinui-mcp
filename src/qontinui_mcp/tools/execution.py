@@ -12,6 +12,14 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from ..types.models import (
+    CheckpointDefinition,
+    CheckpointResult,
+    ExpectationsEvaluationResult,
+    WorkflowExpectations,
+)
+from .expectations import evaluate_workflow_expectations
+
 logger = logging.getLogger(__name__)
 
 # Try to import qontinui - if not available, execution tools will be disabled
@@ -23,6 +31,18 @@ try:
 except ImportError:
     logger.warning("qontinui library not available - execution tools disabled")
 
+# Import OCR capabilities
+try:
+    from .ocr import extract_ocr_text, is_ocr_available
+except ImportError:
+    logger.warning("OCR module not available")
+
+    def is_ocr_available() -> bool:
+        return False
+
+    def extract_ocr_text(image_source: str) -> str | None:
+        return None
+
 
 @dataclass
 class ExecutionResult:
@@ -33,6 +53,7 @@ class ExecutionResult:
     errors: list[str] = field(default_factory=list)
     output: dict[str, Any] | None = None
     screenshot_base64: str | None = None
+    expectations_result: ExpectationsEvaluationResult | None = None
 
 
 @dataclass
@@ -77,6 +98,8 @@ def run_automation(
     script: str,
     timeout_seconds: int = 30,
     capture_screenshot: bool = True,
+    expectations: WorkflowExpectations | dict[str, Any] | None = None,
+    workflow_id: str | None = None,
 ) -> ExecutionResult:
     """Execute a Qontinui automation script.
 
@@ -84,9 +107,11 @@ def run_automation(
         script: The automation script in DSL format or JSON workflow
         timeout_seconds: Maximum execution time
         capture_screenshot: Whether to capture final screenshot
+        expectations: Optional workflow expectations to evaluate after execution
+        workflow_id: Optional workflow ID for expectations evaluation
 
     Returns:
-        ExecutionResult with success status, duration, and optional screenshot
+        ExecutionResult with success status, duration, optional screenshot, and expectations result
     """
     if not QONTINUI_AVAILABLE:
         return ExecutionResult(
@@ -106,10 +131,34 @@ def run_automation(
         # Placeholder implementation
         duration_ms = int((time.time() - start_time) * 1000)
 
+        # Placeholder execution statistics
+        # In real implementation, these would come from the actual execution
+        execution_stats = {
+            "total_actions": 0,
+            "successful_actions": 0,
+            "failed_actions": 0,
+            "skipped_actions": 0,
+            "match_count": 0,
+            "states_reached": set(),
+            "checkpoints_passed": set(),
+            "checkpoints_failed": set(),
+        }
+
+        # Evaluate expectations if provided
+        expectations_result = None
+        if expectations is not None:
+            wf_id = workflow_id or "unknown_workflow"
+            expectations_result = evaluate_workflow_expectations(
+                workflow_id=wf_id,
+                expectations=expectations,
+                execution_stats=execution_stats,
+            )
+
         return ExecutionResult(
             success=True,
             duration_ms=duration_ms,
             output={"message": "Execution placeholder - qontinui integration pending"},
+            expectations_result=expectations_result,
         )
 
     except Exception as e:
@@ -359,3 +408,107 @@ def type_text(text: str) -> ExecutionResult:
             duration_ms=int((time.time() - start_time) * 1000),
             errors=[str(e)],
         )
+
+
+def capture_checkpoint(
+    checkpoint_name: str,
+    checkpoint_def: CheckpointDefinition,
+    extract_ocr: bool = True,
+) -> CheckpointResult:
+    """Capture a checkpoint with screenshot and optional OCR extraction.
+
+    This function captures a screenshot and automatically extracts OCR text
+    if the checkpoint definition includes OCR assertions. The checkpoint is
+    then evaluated against its definition.
+
+    Args:
+        checkpoint_name: Name of the checkpoint
+        checkpoint_def: Checkpoint definition with assertions
+        extract_ocr: Whether to extract OCR text from screenshot (default: True)
+
+    Returns:
+        CheckpointResult with validation status and OCR results
+
+    Example:
+        >>> from qontinui_mcp.types.models import CheckpointDefinition, OCRAssertion, OCRAssertionType
+        >>> checkpoint = CheckpointDefinition(
+        ...     description="Login page checkpoint",
+        ...     screenshot_required=True,
+        ...     ocr_assertions=[
+        ...         OCRAssertion(
+        ...             assertion_type=OCRAssertionType.TEXT_PRESENT,
+        ...             text="Login",
+        ...             case_sensitive=False
+        ...         )
+        ...     ]
+        ... )
+        >>> result = capture_checkpoint("login_page", checkpoint)
+        >>> print(f"Checkpoint passed: {result.ocr_assertions_passed}")
+    """
+    from datetime import datetime
+
+    from .expectations import evaluate_checkpoint
+
+    timestamp = datetime.now().isoformat()
+    screenshot_path: str | None = None
+    ocr_text: str | None = None
+    validation_errors: list[str] = []
+
+    try:
+        # Capture screenshot if required
+        if checkpoint_def.screenshot_required:
+            screenshot_result = capture_screen()
+
+            if screenshot_result.success and screenshot_result.image_base64:
+                # Save screenshot to temp file or use base64 directly
+                screenshot_path = f"checkpoint_{checkpoint_name}_{timestamp}.png"
+                logger.info(f"Screenshot captured for checkpoint '{checkpoint_name}'")
+
+                # Extract OCR text if requested and OCR assertions are defined
+                if extract_ocr and checkpoint_def.ocr_assertions and is_ocr_available():
+                    logger.info(
+                        f"Extracting OCR text for checkpoint '{checkpoint_name}'"
+                    )
+                    ocr_text = extract_ocr_text(screenshot_result.image_base64)
+
+                    if ocr_text is None:
+                        validation_errors.append("OCR extraction failed")
+                        logger.warning(
+                            f"OCR extraction failed for checkpoint '{checkpoint_name}'"
+                        )
+                    else:
+                        logger.info(
+                            f"Extracted {len(ocr_text)} characters from checkpoint '{checkpoint_name}'"
+                        )
+                elif extract_ocr and checkpoint_def.ocr_assertions:
+                    validation_errors.append("OCR not available for assertions")
+                    logger.warning("OCR assertions defined but OCR not available")
+
+            else:
+                validation_errors.append(
+                    f"Screenshot capture failed: {screenshot_result.error}"
+                )
+                logger.error(
+                    f"Screenshot capture failed for checkpoint '{checkpoint_name}': {screenshot_result.error}"
+                )
+
+    except Exception as e:
+        validation_errors.append(f"Checkpoint capture error: {e}")
+        logger.error(f"Error capturing checkpoint '{checkpoint_name}': {e}")
+
+    # Evaluate checkpoint with captured data
+    result = evaluate_checkpoint(
+        checkpoint_name=checkpoint_name,
+        checkpoint_def=checkpoint_def,
+        screenshot_path=screenshot_path,
+        ocr_text=ocr_text,
+    )
+
+    # Add any capture errors to validation errors
+    if validation_errors:
+        if result.validation_errors:
+            result.validation_errors.extend(validation_errors)
+        else:
+            result.validation_errors = validation_errors
+
+    return result

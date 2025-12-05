@@ -25,13 +25,20 @@ from qontinui_mcp.database.search import (
 )
 from qontinui_mcp.tools.execution import (
     assert_state_visible,
+    capture_checkpoint,
     capture_screen,
     compare_screenshots,
     is_execution_available,
     run_automation,
     wait_for_state,
 )
+from qontinui_mcp.tools.expectations import (
+    evaluate_checkpoint,
+    evaluate_workflow_expectations,
+    validate_expectations_config,
+)
 from qontinui_mcp.tools.generator import WorkflowGenerator
+from qontinui_mcp.types.models import CheckpointDefinition, WorkflowExpectations
 from qontinui_mcp.utils.validation import validate_workflow_structure
 
 # Configure logging
@@ -218,7 +225,7 @@ async def list_tools() -> list[Tool]:
         # Execution Tools
         Tool(
             name="run_automation",
-            description="Execute a Qontinui automation script and return results. Requires qontinui library.",
+            description="Execute a Qontinui automation script and return results. Optionally evaluates expectations after execution. Requires qontinui library.",
             inputSchema={
                 "type": "object",
                 "properties": {
@@ -235,6 +242,14 @@ async def list_tools() -> list[Tool]:
                         "type": "boolean",
                         "description": "Whether to capture final screenshot (default: true)",
                         "default": True,
+                    },
+                    "expectations": {
+                        "type": "object",
+                        "description": "Optional workflow expectations to evaluate after execution (global settings, success criteria, checkpoints)",
+                    },
+                    "workflow_id": {
+                        "type": "string",
+                        "description": "Optional workflow ID for expectations evaluation",
                     },
                 },
                 "required": ["script"],
@@ -320,6 +335,140 @@ async def list_tools() -> list[Tool]:
             inputSchema={
                 "type": "object",
                 "properties": {},
+            },
+        ),
+        # Expectations Tools
+        Tool(
+            name="validate_expectations",
+            description="Validate a workflow expectations configuration structure. Checks success criteria, checkpoints, and OCR assertions for correctness.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "expectations": {
+                        "type": "object",
+                        "description": "The expectations configuration JSON to validate",
+                    },
+                },
+                "required": ["expectations"],
+            },
+        ),
+        Tool(
+            name="evaluate_expectations",
+            description="Evaluate workflow expectations against execution results. Returns pass/fail status for all success criteria and checkpoints.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "workflow_id": {
+                        "type": "string",
+                        "description": "ID of the workflow being evaluated",
+                    },
+                    "expectations": {
+                        "type": "object",
+                        "description": "Workflow expectations configuration (global settings, success criteria, checkpoints)",
+                    },
+                    "execution_stats": {
+                        "type": "object",
+                        "description": "Execution statistics including total_actions, successful_actions, failed_actions, match_count, states_reached, checkpoints_passed, etc.",
+                        "properties": {
+                            "total_actions": {"type": "number"},
+                            "successful_actions": {"type": "number"},
+                            "failed_actions": {"type": "number"},
+                            "skipped_actions": {"type": "number"},
+                            "match_count": {"type": "number"},
+                            "states_reached": {"type": "array", "items": {"type": "string"}},
+                            "checkpoints_passed": {"type": "array", "items": {"type": "string"}},
+                            "checkpoints_failed": {"type": "array", "items": {"type": "string"}},
+                        },
+                    },
+                },
+                "required": ["workflow_id", "execution_stats"],
+            },
+        ),
+        Tool(
+            name="evaluate_checkpoint",
+            description="Evaluate a single checkpoint against its definition. Validates OCR assertions against captured text.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "checkpoint_name": {
+                        "type": "string",
+                        "description": "Name of the checkpoint",
+                    },
+                    "checkpoint_definition": {
+                        "type": "object",
+                        "description": "Checkpoint definition with ocr_assertions, claude_review, etc.",
+                        "properties": {
+                            "description": {"type": "string"},
+                            "screenshot_required": {"type": "boolean"},
+                            "ocr_assertions": {
+                                "type": "array",
+                                "items": {
+                                    "type": "object",
+                                    "properties": {
+                                        "type": {"type": "string", "enum": ["text_present", "text_absent", "no_duplicate_matches", "text_count", "text_in_region"]},
+                                        "text": {"type": "string"},
+                                        "case_sensitive": {"type": "boolean"},
+                                        "expected_count": {"type": "number"},
+                                    },
+                                    "required": ["type", "text"],
+                                },
+                            },
+                            "claude_review": {"type": "array", "items": {"type": "string"}},
+                            "max_wait_ms": {"type": "number"},
+                        },
+                    },
+                    "screenshot_path": {
+                        "type": "string",
+                        "description": "Path to captured screenshot (optional)",
+                    },
+                    "ocr_text": {
+                        "type": "string",
+                        "description": "OCR text extracted from screenshot (optional)",
+                    },
+                },
+                "required": ["checkpoint_name", "checkpoint_definition"],
+            },
+        ),
+        Tool(
+            name="capture_checkpoint",
+            description="Capture a checkpoint with screenshot and automatic OCR extraction. This tool captures a screenshot, extracts text using OCR, and evaluates the checkpoint against its definition in one operation.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "checkpoint_name": {
+                        "type": "string",
+                        "description": "Name of the checkpoint",
+                    },
+                    "checkpoint_definition": {
+                        "type": "object",
+                        "description": "Checkpoint definition with ocr_assertions, claude_review, etc.",
+                        "properties": {
+                            "description": {"type": "string"},
+                            "screenshot_required": {"type": "boolean"},
+                            "ocr_assertions": {
+                                "type": "array",
+                                "items": {
+                                    "type": "object",
+                                    "properties": {
+                                        "type": {"type": "string", "enum": ["text_present", "text_absent", "no_duplicate_matches", "text_count", "text_in_region"]},
+                                        "text": {"type": "string"},
+                                        "case_sensitive": {"type": "boolean"},
+                                        "expected_count": {"type": "number"},
+                                    },
+                                    "required": ["type", "text"],
+                                },
+                            },
+                            "claude_review": {"type": "array", "items": {"type": "string"}},
+                            "max_wait_ms": {"type": "number"},
+                        },
+                    },
+                    "extract_ocr": {
+                        "type": "boolean",
+                        "description": "Whether to extract OCR text from screenshot (default: true)",
+                        "default": True,
+                    },
+                },
+                "required": ["checkpoint_name", "checkpoint_definition"],
             },
         ),
     ]
@@ -413,9 +562,17 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
             script = arguments.get("script", "")
             timeout = arguments.get("timeout_seconds", 30)
             capture = arguments.get("capture_screenshot", True)
+            expectations = arguments.get("expectations")
+            workflow_id = arguments.get("workflow_id")
             if not script:
                 raise ValueError("script parameter is required")
-            exec_result = run_automation(script, timeout, capture)
+            exec_result = run_automation(
+                script=script,
+                timeout_seconds=timeout,
+                capture_screenshot=capture,
+                expectations=expectations,
+                workflow_id=workflow_id,
+            )
             result = {
                 "success": exec_result.success,
                 "duration_ms": exec_result.duration_ms,
@@ -423,6 +580,19 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
                 "output": exec_result.output,
                 "screenshot_base64": exec_result.screenshot_base64,
             }
+            # Include expectations result if present
+            if exec_result.expectations_result is not None:
+                result["expectations_result"] = {
+                    "workflow_id": exec_result.expectations_result.workflow_id,
+                    "success": exec_result.expectations_result.success,
+                    "criteria_results": exec_result.expectations_result.criteria_results,
+                    "checkpoint_results": [
+                        cp.model_dump()
+                        for cp in (exec_result.expectations_result.checkpoint_results or [])
+                    ],
+                    "evaluation_summary": exec_result.expectations_result.evaluation_summary,
+                    "duration_ms": exec_result.expectations_result.duration_ms,
+                }
 
         elif name == "capture_screenshot":
             screenshot = capture_screen()
@@ -480,6 +650,96 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
 
         elif name == "is_execution_available":
             result = {"available": is_execution_available()}
+
+        # Expectations Tools
+        elif name == "validate_expectations":
+            expectations = arguments.get("expectations")
+            if expectations is None:
+                raise ValueError("expectations parameter is required")
+            is_valid, errors = validate_expectations_config(expectations)
+            result = {
+                "valid": is_valid,
+                "errors": errors,
+            }
+
+        elif name == "evaluate_expectations":
+            workflow_id = arguments.get("workflow_id", "")
+            if not workflow_id:
+                raise ValueError("workflow_id parameter is required")
+            expectations = arguments.get("expectations")
+            exec_stats = arguments.get("execution_stats", {})
+
+            # Convert array fields to sets for evaluation
+            if "states_reached" in exec_stats:
+                exec_stats["states_reached"] = set(exec_stats["states_reached"])
+            if "checkpoints_passed" in exec_stats:
+                exec_stats["checkpoints_passed"] = set(exec_stats["checkpoints_passed"])
+            if "checkpoints_failed" in exec_stats:
+                exec_stats["checkpoints_failed"] = set(exec_stats["checkpoints_failed"])
+
+            eval_result = evaluate_workflow_expectations(
+                workflow_id=workflow_id,
+                expectations=expectations,
+                execution_stats=exec_stats,
+            )
+            result = {
+                "workflow_id": eval_result.workflow_id,
+                "success": eval_result.success,
+                "criteria_results": eval_result.criteria_results,
+                "checkpoint_results": [
+                    cp.model_dump() for cp in (eval_result.checkpoint_results or [])
+                ],
+                "evaluation_summary": eval_result.evaluation_summary,
+                "duration_ms": eval_result.duration_ms,
+            }
+
+        elif name == "evaluate_checkpoint":
+            checkpoint_name = arguments.get("checkpoint_name", "")
+            if not checkpoint_name:
+                raise ValueError("checkpoint_name parameter is required")
+            checkpoint_def_dict = arguments.get("checkpoint_definition")
+            if not checkpoint_def_dict:
+                raise ValueError("checkpoint_definition parameter is required")
+
+            # Parse checkpoint definition
+            try:
+                checkpoint_def = CheckpointDefinition.model_validate(checkpoint_def_dict)
+            except Exception as e:
+                raise ValueError(f"Invalid checkpoint_definition: {e}")
+
+            screenshot_path = arguments.get("screenshot_path")
+            ocr_text = arguments.get("ocr_text")
+
+            cp_result = evaluate_checkpoint(
+                checkpoint_name=checkpoint_name,
+                checkpoint_def=checkpoint_def,
+                screenshot_path=screenshot_path,
+                ocr_text=ocr_text,
+            )
+            result = cp_result.model_dump()
+
+        elif name == "capture_checkpoint":
+            checkpoint_name = arguments.get("checkpoint_name", "")
+            if not checkpoint_name:
+                raise ValueError("checkpoint_name parameter is required")
+            checkpoint_def_dict = arguments.get("checkpoint_definition")
+            if not checkpoint_def_dict:
+                raise ValueError("checkpoint_definition parameter is required")
+
+            # Parse checkpoint definition
+            try:
+                checkpoint_def = CheckpointDefinition.model_validate(checkpoint_def_dict)
+            except Exception as e:
+                raise ValueError(f"Invalid checkpoint_definition: {e}")
+
+            extract_ocr = arguments.get("extract_ocr", True)
+
+            cp_result = capture_checkpoint(
+                checkpoint_name=checkpoint_name,
+                checkpoint_def=checkpoint_def,
+                extract_ocr=extract_ocr,
+            )
+            result = cp_result.model_dump()
 
         else:
             raise ValueError(f"Unknown tool: {name}")
