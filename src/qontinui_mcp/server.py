@@ -129,13 +129,13 @@ TOOLS = [
 ]
 
 
-@server.list_tools()
+@server.list_tools()  # type: ignore[misc,no-untyped-call]
 async def list_tools() -> list[types.Tool]:
     """List all available tools."""
     return TOOLS
 
 
-@server.call_tool()
+@server.call_tool()  # type: ignore[misc]
 async def call_tool(name: str, arguments: dict[str, Any]) -> list[types.TextContent]:
     """Handle tool calls by forwarding to the runner."""
     qontinui = get_client()

@@ -263,9 +263,11 @@ class QontinuiClient:
         # Match by position - return the monitor's actual index, not the list position
         for m in monitors:
             if m.get("position", "").lower() == monitor_lower:
-                return m.get("index")
+                index = m.get("index")
+                return int(index) if index is not None else None
             if monitor_lower == "primary" and m.get("is_primary"):
-                return m.get("index")
+                index = m.get("index")
+                return int(index) if index is not None else None
 
         # Try parsing as int
         try:
@@ -326,4 +328,5 @@ class QontinuiClient:
             # Can't verify, assume not loaded
             return False
 
-        return response.data.get("config_loaded", False)
+        config_loaded = response.data.get("config_loaded", False)
+        return bool(config_loaded)
