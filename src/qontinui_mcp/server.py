@@ -10,9 +10,6 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-import os
-import sys
-from pathlib import Path
 from typing import Any
 
 from mcp import types
@@ -146,71 +143,140 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[types.TextCont
     try:
         if name == "get_executor_status":
             response = await qontinui.status()
-            return [types.TextContent(type="text", text=json.dumps(response.__dict__, indent=2))]
+            return [
+                types.TextContent(
+                    type="text", text=json.dumps(response.__dict__, indent=2)
+                )
+            ]
 
         elif name == "list_monitors":
             response = await qontinui.list_monitors()
-            return [types.TextContent(type="text", text=json.dumps(response.__dict__, indent=2))]
+            return [
+                types.TextContent(
+                    type="text", text=json.dumps(response.__dict__, indent=2)
+                )
+            ]
 
         elif name == "load_config":
             config_path = arguments.get("config_path", "")
             response = await qontinui.load_config(config_path)
-            return [types.TextContent(type="text", text=json.dumps(response.__dict__, indent=2))]
+            return [
+                types.TextContent(
+                    type="text", text=json.dumps(response.__dict__, indent=2)
+                )
+            ]
 
         elif name == "ensure_config_loaded":
             config_path = arguments.get("config_path", "")
-            if qontinui.is_config_loaded(config_path):
-                return [types.TextContent(type="text", text=json.dumps({
-                    "success": True,
-                    "data": {"already_loaded": True, "config_path": config_path},
-                }, indent=2))]
+            # Use verify_config_loaded to check BOTH local cache AND runner state
+            if await qontinui.verify_config_loaded(config_path):
+                return [
+                    types.TextContent(
+                        type="text",
+                        text=json.dumps(
+                            {
+                                "success": True,
+                                "data": {
+                                    "already_loaded": True,
+                                    "config_path": config_path,
+                                },
+                            },
+                            indent=2,
+                        ),
+                    )
+                ]
+            # Config not loaded on runner, load it now
             response = await qontinui.load_config(config_path)
-            return [types.TextContent(type="text", text=json.dumps(response.__dict__, indent=2))]
+            return [
+                types.TextContent(
+                    type="text", text=json.dumps(response.__dict__, indent=2)
+                )
+            ]
 
         elif name == "get_loaded_config":
             info = qontinui.get_loaded_config_info()
-            return [types.TextContent(type="text", text=json.dumps({
-                "success": True,
-                "data": info,
-            }, indent=2))]
+            return [
+                types.TextContent(
+                    type="text",
+                    text=json.dumps(
+                        {
+                            "success": True,
+                            "data": info,
+                        },
+                        indent=2,
+                    ),
+                )
+            ]
 
         elif name == "run_workflow":
             workflow_name = arguments.get("workflow_name", "")
             monitor = arguments.get("monitor")
             timeout = arguments.get("timeout_seconds", 300)
 
-            result = await qontinui.run_workflow(workflow_name, monitor=monitor, timeout=timeout)
-            return [types.TextContent(type="text", text=json.dumps({
-                "success": result.success,
-                "execution_id": result.execution_id,
-                "duration_ms": result.duration_ms,
-                "error": result.error,
-                "events": result.events,
-            }, indent=2))]
+            result = await qontinui.run_workflow(
+                workflow_name, monitor=monitor, timeout=timeout
+            )
+            return [
+                types.TextContent(
+                    type="text",
+                    text=json.dumps(
+                        {
+                            "success": result.success,
+                            "execution_id": result.execution_id,
+                            "duration_ms": result.duration_ms,
+                            "error": result.error,
+                            "events": result.events,
+                        },
+                        indent=2,
+                    ),
+                )
+            ]
 
         elif name == "stop_execution":
             response = await qontinui.stop_execution()
-            return [types.TextContent(type="text", text=json.dumps(response.__dict__, indent=2))]
+            return [
+                types.TextContent(
+                    type="text", text=json.dumps(response.__dict__, indent=2)
+                )
+            ]
 
         else:
-            return [types.TextContent(type="text", text=json.dumps({
-                "success": False,
-                "error": f"Unknown tool: {name}",
-            }, indent=2))]
+            return [
+                types.TextContent(
+                    type="text",
+                    text=json.dumps(
+                        {
+                            "success": False,
+                            "error": f"Unknown tool: {name}",
+                        },
+                        indent=2,
+                    ),
+                )
+            ]
 
     except Exception as e:
         logger.exception(f"Error calling tool {name}")
-        return [types.TextContent(type="text", text=json.dumps({
-            "success": False,
-            "error": str(e),
-        }, indent=2))]
+        return [
+            types.TextContent(
+                type="text",
+                text=json.dumps(
+                    {
+                        "success": False,
+                        "error": str(e),
+                    },
+                    indent=2,
+                ),
+            )
+        ]
 
 
 async def main() -> None:
     """Run the MCP server."""
     logger.info("Starting Qontinui MCP Server (lightweight)")
     async with stdio_server() as (read_stream, write_stream):
-        await server.run(read_stream, write_stream, server.create_initialization_options())
+        await server.run(
+            read_stream, write_stream, server.create_initialization_options()
+        )
 
 
 def run() -> None:

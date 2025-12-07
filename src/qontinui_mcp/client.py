@@ -122,7 +122,9 @@ class QontinuiClient:
             elif method == "POST":
                 response = await client.post(url, json=json_data, timeout=timeout)
             else:
-                return RunnerResponse(success=False, error=f"Unsupported method: {method}")
+                return RunnerResponse(
+                    success=False, error=f"Unsupported method: {method}"
+                )
 
             response.raise_for_status()
             data = response.json()
@@ -164,7 +166,9 @@ class QontinuiClient:
         """
         path = Path(config_path)
         if not path.exists():
-            return RunnerResponse(success=False, error=f"Config file not found: {config_path}")
+            return RunnerResponse(
+                success=False, error=f"Config file not found: {config_path}"
+            )
 
         # Cache the config locally
         try:
@@ -176,7 +180,9 @@ class QontinuiClient:
 
         # Convert to Windows path if needed
         windows_path = convert_wsl_path(str(path.resolve()))
-        return await self._request("POST", "/load-config", {"config_path": windows_path})
+        return await self._request(
+            "POST", "/load-config", {"config_path": windows_path}
+        )
 
     async def run_workflow(
         self,
@@ -206,10 +212,17 @@ class QontinuiClient:
         if monitor is not None:
             # Resolve monitor descriptor
             monitor_index = await self._resolve_monitor(monitor)
+            print(
+                f"[MCP_CLIENT] Monitor resolution: '{monitor}' -> index {monitor_index}"
+            )
             if monitor_index is not None:
                 request_data["monitor_index"] = monitor_index
 
-        response = await self._request("POST", "/run-workflow", request_data, timeout=timeout)
+        print(f"[MCP_CLIENT] Sending run-workflow request: {request_data}")
+        response = await self._request(
+            "POST", "/run-workflow", request_data, timeout=timeout
+        )
+        print(f"[MCP_CLIENT] run-workflow response success={response.success}")
 
         if response.success and response.data:
             return ExecutionResult(
@@ -247,12 +260,12 @@ class QontinuiClient:
         monitors = response.data.get("monitors", [])
         monitor_lower = monitor.lower()
 
-        # Match by position
-        for i, m in enumerate(monitors):
+        # Match by position - return the monitor's actual index, not the list position
+        for m in monitors:
             if m.get("position", "").lower() == monitor_lower:
-                return i
+                return m.get("index")
             if monitor_lower == "primary" and m.get("is_primary"):
-                return i
+                return m.get("index")
 
         # Try parsing as int
         try:
@@ -282,7 +295,35 @@ class QontinuiClient:
         }
 
     def is_config_loaded(self, config_path: str) -> bool:
-        """Check if a specific config is loaded."""
+        """Check if a specific config is loaded (local cache only).
+
+        WARNING: This only checks the local cache, NOT the runner's actual state.
+        Use verify_config_loaded() for a reliable check that queries the runner.
+        """
         if self._loaded_config_path is None:
             return False
         return Path(self._loaded_config_path).resolve() == Path(config_path).resolve()
+
+    async def verify_config_loaded(self, config_path: str) -> bool:
+        """Verify that the runner actually has a config loaded.
+
+        This queries the runner's /status endpoint to check if config_loaded is true.
+        More reliable than is_config_loaded() which only checks local cache.
+
+        Args:
+            config_path: Path to verify is loaded.
+
+        Returns:
+            True if local cache matches AND runner confirms config is loaded.
+        """
+        # First check local cache
+        if not self.is_config_loaded(config_path):
+            return False
+
+        # Then verify with runner
+        response = await self.status()
+        if not response.success or not response.data:
+            # Can't verify, assume not loaded
+            return False
+
+        return response.data.get("config_loaded", False)
