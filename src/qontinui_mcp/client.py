@@ -5,7 +5,9 @@ from __future__ import annotations
 import json
 import logging
 import os
+import shutil
 from dataclasses import dataclass, field
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -16,6 +18,14 @@ logger = logging.getLogger(__name__)
 DEFAULT_RUNNER_PORT = 9876
 DEFAULT_TIMEOUT = 30.0
 EXECUTION_TIMEOUT = 300.0
+
+# Results directory for QA feedback loop
+# This is the same location used by qontinui-runner-mcp
+AUTOMATION_RESULTS_DIR = Path(
+    "/mnt/c/Users/Joshua/Documents/qontinui_parent_directory/.automation-results"
+)
+DEV_LOGS_DIR = Path("/mnt/c/Users/Joshua/Documents/qontinui_parent_directory/.dev-logs")
+MAX_HISTORY_RUNS = 10
 
 
 def get_windows_host() -> str:
@@ -46,6 +56,159 @@ def convert_wsl_path(wsl_path: str) -> str:
             rest = "/".join(parts[3:])
             return f"{drive}:\\{rest.replace('/', '\\')}"
     return wsl_path
+
+
+def _save_automation_results(
+    execution_id: str,
+    config_path: str,
+    workflow_name: str,
+    success: bool,
+    duration_ms: int,
+    error: str | None,
+    events: list[dict[str, Any]],
+    monitor: int | str | None = None,
+) -> Path:
+    """Save automation results to filesystem for QA feedback loop.
+
+    This mirrors the functionality in qontinui-runner-mcp to ensure
+    execution.json is always created for the /analyze-automation command.
+    """
+    latest_dir = AUTOMATION_RESULTS_DIR / "latest"
+    history_dir = AUTOMATION_RESULTS_DIR / "history"
+    latest_logs_dir = latest_dir / "logs"
+    latest_screenshots_dir = latest_dir / "screenshots"
+
+    for d in [latest_dir, history_dir, latest_logs_dir, latest_screenshots_dir]:
+        d.mkdir(parents=True, exist_ok=True)
+
+    # Archive previous latest to history (if exists)
+    existing_execution_file = latest_dir / "execution.json"
+    if existing_execution_file.exists():
+        try:
+            with open(existing_execution_file) as f:
+                prev_data = json.load(f)
+                prev_id = prev_data.get("execution_id", "unknown")
+                prev_timestamp = (
+                    prev_data.get("timestamp", "unknown")
+                    .replace(":", "-")
+                    .replace(".", "-")
+                )
+
+            history_entry_name = f"{prev_timestamp}_{prev_id[:8]}"
+            history_entry_dir = history_dir / history_entry_name
+
+            if not history_entry_dir.exists():
+                shutil.copytree(latest_dir, history_entry_dir)
+                logger.info(f"Archived previous run to history: {history_entry_name}")
+
+            # Clean up old history entries
+            entries = sorted(
+                [d for d in history_dir.iterdir() if d.is_dir()],
+                key=lambda x: x.stat().st_mtime,
+                reverse=True,
+            )
+            for old_entry in entries[MAX_HISTORY_RUNS:]:
+                try:
+                    shutil.rmtree(old_entry)
+                except Exception as e:
+                    logger.warning(f"Failed to remove old history entry: {e}")
+        except Exception as e:
+            logger.warning(f"Failed to archive previous results: {e}")
+
+    # Clear latest directory
+    for item in latest_dir.iterdir():
+        if item.is_file():
+            item.unlink()
+        elif item.is_dir():
+            shutil.rmtree(item)
+
+    # Recreate subdirectories
+    latest_logs_dir.mkdir(exist_ok=True)
+    latest_screenshots_dir.mkdir(exist_ok=True)
+
+    # Capture log snapshots from .dev-logs
+    log_files = ["backend.log", "frontend.log", "qontinui-api.log", "runner.log"]
+    for log_file in log_files:
+        src_log = DEV_LOGS_DIR / log_file
+        if src_log.exists():
+            try:
+                with open(src_log, "r", errors="ignore") as f:
+                    lines = f.readlines()
+                    last_lines = lines[-500:] if len(lines) > 500 else lines
+
+                dst_log = latest_logs_dir / log_file
+                with open(dst_log, "w") as f:
+                    f.writelines(last_lines)
+            except Exception as e:
+                logger.warning(f"Failed to capture log {log_file}: {e}")
+
+    # Copy AI output log (complete file, not truncated)
+    ai_output_log = DEV_LOGS_DIR / "ai-output.jsonl"
+    if ai_output_log.exists():
+        try:
+            shutil.copy2(ai_output_log, latest_logs_dir / "ai-output.jsonl")
+            logger.info("Copied AI output log to automation results")
+        except Exception as e:
+            logger.warning(f"Failed to copy AI output log: {e}")
+
+    # Build execution results JSON
+    timestamp = datetime.now().isoformat()
+
+    execution_result = {
+        "execution_id": execution_id,
+        "config_path": config_path,
+        "workflow_name": workflow_name,
+        "monitor": monitor,
+        "success": success,
+        "duration_ms": duration_ms,
+        "timestamp": timestamp,
+        "error": error,
+        "summary": {
+            "total_events": len(events),
+            "test_results_count": 0,
+            "console_errors_count": 0,
+            "network_failures_count": 0,
+        },
+        "test_results": [],
+        "console_errors": [],
+        "network_failures": [],
+        "screenshots": [],
+        "log_snapshots": {
+            "backend": (
+                str(latest_logs_dir / "backend.log")
+                if (latest_logs_dir / "backend.log").exists()
+                else None
+            ),
+            "frontend": (
+                str(latest_logs_dir / "frontend.log")
+                if (latest_logs_dir / "frontend.log").exists()
+                else None
+            ),
+            "api": (
+                str(latest_logs_dir / "qontinui-api.log")
+                if (latest_logs_dir / "qontinui-api.log").exists()
+                else None
+            ),
+            "runner": (
+                str(latest_logs_dir / "runner.log")
+                if (latest_logs_dir / "runner.log").exists()
+                else None
+            ),
+            "ai_output": (
+                str(latest_logs_dir / "ai-output.jsonl")
+                if (latest_logs_dir / "ai-output.jsonl").exists()
+                else None
+            ),
+        },
+    }
+
+    # Write execution.json
+    execution_file = latest_dir / "execution.json"
+    with open(execution_file, "w") as f:
+        json.dump(execution_result, f, indent=2)
+
+    logger.info(f"Saved automation results to {execution_file}")
+    return execution_file
 
 
 @dataclass
@@ -225,7 +388,7 @@ class QontinuiClient:
         print(f"[MCP_CLIENT] run-workflow response success={response.success}")
 
         if response.success and response.data:
-            return ExecutionResult(
+            result = ExecutionResult(
                 execution_id=execution_id,
                 success=response.data.get("success", False),
                 duration_ms=response.data.get("duration_ms", 0),
@@ -233,11 +396,28 @@ class QontinuiClient:
                 events=response.data.get("events", []),
             )
         else:
-            return ExecutionResult(
+            result = ExecutionResult(
                 execution_id=execution_id,
                 success=False,
                 error=response.error or "Unknown error",
             )
+
+        # Save execution results for QA feedback loop
+        try:
+            _save_automation_results(
+                execution_id=execution_id,
+                config_path=self._loaded_config_path or "unknown",
+                workflow_name=workflow_name,
+                success=result.success,
+                duration_ms=result.duration_ms,
+                error=result.error,
+                events=result.events,
+                monitor=monitor,
+            )
+        except Exception as e:
+            logger.warning(f"Failed to save automation results: {e}")
+
+        return result
 
     async def stop_execution(self) -> RunnerResponse:
         """Stop the current workflow execution."""
