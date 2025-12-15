@@ -154,7 +154,7 @@ def _save_automation_results(
     # Build execution results JSON
     timestamp = datetime.now().isoformat()
 
-    execution_result = {
+    execution_result: dict[str, Any] = {
         "execution_id": execution_id,
         "config_path": config_path,
         "workflow_name": workflow_name,
