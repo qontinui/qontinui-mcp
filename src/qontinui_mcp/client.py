@@ -364,12 +364,32 @@ class QontinuiClient:
 
         execution_id = str(uuid.uuid4())
 
+        # If we don't have a local config cache, check if runner has one loaded
         if self._loaded_config is None:
-            return ExecutionResult(
-                execution_id=execution_id,
-                success=False,
-                error="No configuration loaded. Use load_config first.",
-            )
+            status_response = await self.status()
+            if status_response.success and status_response.data:
+                runner_has_config = status_response.data.get("config_loaded", False)
+                if runner_has_config:
+                    # Runner has a config loaded - we can proceed
+                    # Set _loaded_config to empty dict to indicate config exists
+                    # (we don't have the full config, but that's okay for execution)
+                    self._loaded_config = {}
+                    self._loaded_config_path = status_response.data.get("config_path")
+                    logger.info(
+                        f"Runner has config loaded at: {self._loaded_config_path}"
+                    )
+                else:
+                    return ExecutionResult(
+                        execution_id=execution_id,
+                        success=False,
+                        error="No configuration loaded. Use load_config first.",
+                    )
+            else:
+                return ExecutionResult(
+                    execution_id=execution_id,
+                    success=False,
+                    error=f"Failed to check runner status: {status_response.error}",
+                )
 
         request_data: dict[str, Any] = {"workflow_name": workflow_name}
         if monitor is not None:
