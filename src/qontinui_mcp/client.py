@@ -54,7 +54,9 @@ def convert_wsl_path(wsl_path: str) -> str:
         if len(parts) >= 3:
             drive = parts[2].upper()
             rest = "/".join(parts[3:])
-            return f"{drive}:\\{rest.replace('/', '\\')}"
+            # Convert forward slashes to backslashes for Windows path
+            rest_windows = rest.replace("/", "\\")
+            return f"{drive}:\{rest_windows}"
     return wsl_path
 
 

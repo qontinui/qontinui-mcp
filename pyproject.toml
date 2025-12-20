@@ -21,7 +21,7 @@ classifiers = [
 packages = [{include = "qontinui_mcp", from = "src"}]
 
 [tool.poetry.scripts]
-qontinui-mcp = "qontinui_mcp.server:main"
+qontinui-mcp = "qontinui_mcp.server:run"
 
 [tool.poetry.dependencies]
 python = "^3.10"
