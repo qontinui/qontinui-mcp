@@ -54,7 +54,7 @@ def convert_wsl_path(wsl_path: str) -> str:
         if len(parts) >= 3:
             drive = parts[2].upper()
             rest = "/".join(parts[3:])
-            return f"{drive}:\\{rest.replace('/', '\\')}"
+            return "{}:\\{}".format(drive, rest.replace("/", "\\"))
     return wsl_path
 
 
