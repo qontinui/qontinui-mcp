@@ -395,17 +395,17 @@ class QontinuiClient:
         if monitor is not None:
             # Resolve monitor descriptor
             monitor_index = await self._resolve_monitor(monitor)
-            print(
-                f"[MCP_CLIENT] Monitor resolution: '{monitor}' -> index {monitor_index}"
+            logger.debug(
+                f"Monitor resolution: '{monitor}' -> index {monitor_index}"
             )
             if monitor_index is not None:
                 request_data["monitor_index"] = monitor_index
 
-        print(f"[MCP_CLIENT] Sending run-workflow request: {request_data}")
+        logger.debug(f"Sending run-workflow request: {request_data}")
         response = await self._request(
             "POST", "/run-workflow", request_data, timeout=timeout
         )
-        print(f"[MCP_CLIENT] run-workflow response success={response.success}")
+        logger.debug(f"run-workflow response success={response.success}")
 
         if response.success and response.data:
             result = ExecutionResult(
