@@ -395,9 +395,7 @@ class QontinuiClient:
         if monitor is not None:
             # Resolve monitor descriptor
             monitor_index = await self._resolve_monitor(monitor)
-            logger.debug(
-                f"Monitor resolution: '{monitor}' -> index {monitor_index}"
-            )
+            logger.debug(f"Monitor resolution: '{monitor}' -> index {monitor_index}")
             if monitor_index is not None:
                 request_data["monitor_index"] = monitor_index
 
@@ -446,6 +444,87 @@ class QontinuiClient:
     async def list_monitors(self) -> RunnerResponse:
         """List available monitors."""
         return await self._request("GET", "/monitors")
+
+    async def get_task_runs(self, status: str | None = None) -> RunnerResponse:
+        """Get all task runs, optionally filtered by status.
+
+        Args:
+            status: Optional status filter ('running', 'complete', 'failed', 'stopped')
+        """
+        endpoint = "/task-runs"
+        if status == "running":
+            endpoint = "/task-runs/running"
+        return await self._request("GET", endpoint)
+
+    async def get_task_run(self, task_id: str) -> RunnerResponse:
+        """Get a specific task run with full details including execution_steps_json.
+
+        Args:
+            task_id: The task run ID to retrieve.
+        """
+        return await self._request("GET", f"/task-runs/{task_id}")
+
+    async def get_automation_runs(
+        self, config_id: str | None = None, limit: int = 20
+    ) -> RunnerResponse:
+        """Get recent automation runs (from run_details table).
+
+        Args:
+            config_id: Optional config ID to filter by.
+            limit: Maximum number of runs to return (default: 20).
+
+        Returns:
+            RunnerResponse with list of RunDetails objects containing:
+            - actions_summary: Summary of actions executed
+            - states_visited: List of state names visited
+            - transitions_executed: List of transitions with timing
+            - template_matches: List of template match results
+            - anomalies: Any detected anomalies
+        """
+        params = []
+        if config_id:
+            params.append(f"config_id={config_id}")
+        if limit != 20:
+            params.append(f"limit={limit}")
+        endpoint = "/runs"
+        if params:
+            endpoint += "?" + "&".join(params)
+        return await self._request("GET", endpoint)
+
+    async def get_automation_run(self, run_id: str) -> RunnerResponse:
+        """Get a specific automation run with full details.
+
+        Args:
+            run_id: The automation run ID to retrieve.
+
+        Returns:
+            RunnerResponse with RunDetails object containing all run data.
+        """
+        return await self._request("GET", f"/runs/{run_id}")
+
+    async def list_screenshots(self) -> RunnerResponse:
+        """List available screenshots in the .dev-logs/screenshots directory."""
+        # This reads files directly since the runner might not have a dedicated endpoint
+        screenshots_dir = DEV_LOGS_DIR / "screenshots"
+        if not screenshots_dir.exists():
+            return RunnerResponse(success=True, data={"screenshots": [], "count": 0})
+
+        screenshots = []
+        for f in sorted(
+            screenshots_dir.glob("*.png"), key=lambda x: x.stat().st_mtime, reverse=True
+        ):
+            screenshots.append(
+                {
+                    "filename": f.name,
+                    "path": str(f),
+                    "size_bytes": f.stat().st_size,
+                    "modified": f.stat().st_mtime,
+                }
+            )
+
+        return RunnerResponse(
+            success=True, data={"screenshots": screenshots, "count": len(screenshots)}
+        )
 
     async def _resolve_monitor(self, monitor: int | str) -> int | None:
         """Resolve a monitor descriptor to an index."""
@@ -530,3 +609,70 @@ class QontinuiClient:
 
         config_loaded = response.data.get("config_loaded", False)
         return bool(config_loaded)
+
+    async def read_runner_logs(
+        self,
+        log_type: str = "all",
+        limit: int = 100,
+    ) -> RunnerResponse:
+        """Read runner JSONL log files from .dev-logs directory.
+
+        Args:
+            log_type: Type of logs to read. Options:
+                - 'general': General executor events (runner-general.jsonl)
+                - 'actions': Tree/action events from workflow execution (runner-actions.jsonl)
+                - 'image-recognition': Image recognition results with match details (runner-image-recognition.jsonl)
+                - 'playwright': Playwright test execution results (runner-playwright.jsonl)
+                - 'all': All log types combined
+            limit: Maximum number of entries to return per log type (default: 100)
+
+        Returns:
+            RunnerResponse with log entries, or error if logs cannot be read.
+        """
+        log_files = {
+            "general": "runner-general.jsonl",
+            "actions": "runner-actions.jsonl",
+            "image-recognition": "runner-image-recognition.jsonl",
+            "playwright": "runner-playwright.jsonl",
+        }
+
+        if log_type == "all":
+            types_to_read = list(log_files.keys())
+        elif log_type in log_files:
+            types_to_read = [log_type]
+        else:
+            return RunnerResponse(
+                success=False,
+                error=f"Unknown log type: {log_type}. Valid options: {', '.join(log_files.keys())}, all",
+            )
+
+        result: dict[str, Any] = {"logs": {}, "summary": {}}
+
+        for ltype in types_to_read:
+            log_file = DEV_LOGS_DIR / log_files[ltype]
+            entries = []
+
+            if log_file.exists():
+                try:
+                    with open(log_file, "r", errors="ignore") as f:
+                        lines = f.readlines()
+                        # Read last N lines (most recent entries)
+                        recent_lines = lines[-limit:] if len(lines) > limit else lines
+                        for line in recent_lines:
+                            line = line.strip()
+                            if line:
+                                try:
+                                    entries.append(json.loads(line))
+                                except json.JSONDecodeError:
+                                    continue
+                except Exception as e:
+                    logger.warning(f"Failed to read log file {log_file}: {e}")
+
+            result["logs"][ltype] = entries
+            result["summary"][ltype] = {
+                "count": len(entries),
+                "file_exists": log_file.exists(),
+                "file_path": str(log_file),
+            }
+
+        return RunnerResponse(success=True, data=result)

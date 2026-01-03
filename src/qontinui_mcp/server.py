@@ -126,6 +126,100 @@ TOOLS = [
             "properties": {},
         },
     ),
+    types.Tool(
+        name="get_task_runs",
+        description="Get all task runs from the runner database. Optionally filter by status.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "status": {
+                    "type": "string",
+                    "description": "Filter by status: 'running', 'complete', 'failed', 'stopped'. Default: all.",
+                    "enum": ["running", "complete", "failed", "stopped"],
+                },
+            },
+        },
+    ),
+    types.Tool(
+        name="get_task_run",
+        description="Get a specific task run with full details including execution_steps_json and output_log.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "task_id": {
+                    "type": "string",
+                    "description": "The task run ID to retrieve",
+                },
+            },
+            "required": ["task_id"],
+        },
+    ),
+    types.Tool(
+        name="list_screenshots",
+        description="List available screenshots in the .dev-logs/screenshots directory. Returns file paths that can be read with Claude's Read tool.",
+        inputSchema={
+            "type": "object",
+            "properties": {},
+        },
+    ),
+    types.Tool(
+        name="read_runner_logs",
+        description="Read runner JSONL log files from .dev-logs directory. Use this to access detailed execution logs including image recognition results, action events, and Playwright test results.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "log_type": {
+                    "type": "string",
+                    "description": "Type of logs to read: 'general' (executor events), 'actions' (workflow execution), 'image-recognition' (match results with annotated screenshots), 'playwright' (test results), or 'all' (all types).",
+                    "enum": [
+                        "general",
+                        "actions",
+                        "image-recognition",
+                        "playwright",
+                        "all",
+                    ],
+                    "default": "all",
+                },
+                "limit": {
+                    "type": "integer",
+                    "description": "Maximum number of entries per log type (default: 100). Most recent entries are returned.",
+                    "default": 100,
+                },
+            },
+        },
+    ),
+    types.Tool(
+        name="get_automation_runs",
+        description="Get recent automation runs from the runner database. These are GUI automation workflow executions with detailed action/state/transition data.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "config_id": {
+                    "type": "string",
+                    "description": "Optional config ID to filter runs by.",
+                },
+                "limit": {
+                    "type": "integer",
+                    "description": "Maximum number of runs to return (default: 20).",
+                    "default": 20,
+                },
+            },
+        },
+    ),
+    types.Tool(
+        name="get_automation_run",
+        description="Get a specific automation run with full details including actions_summary, states_visited, transitions_executed, template_matches, and anomalies.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "run_id": {
+                    "type": "string",
+                    "description": "The automation run ID to retrieve.",
+                },
+            },
+            "required": ["run_id"],
+        },
+    ),
 ]
 
 
@@ -234,6 +328,73 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[types.TextCont
 
         elif name == "stop_execution":
             response = await qontinui.stop_execution()
+            return [
+                types.TextContent(
+                    type="text", text=json.dumps(response.__dict__, indent=2)
+                )
+            ]
+
+        elif name == "get_task_runs":
+            status = arguments.get("status")
+            response = await qontinui.get_task_runs(status=status)
+            return [
+                types.TextContent(
+                    type="text", text=json.dumps(response.__dict__, indent=2)
+                )
+            ]
+
+        elif name == "get_task_run":
+            task_id = arguments.get("task_id", "")
+            if not task_id:
+                return [
+                    types.TextContent(
+                        type="text",
+                        text=json.dumps(
+                            {"success": False, "error": "task_id is required"},
+                            indent=2,
+                        ),
+                    )
+                ]
+            response = await qontinui.get_task_run(task_id)
+            return [
+                types.TextContent(
+                    type="text", text=json.dumps(response.__dict__, indent=2)
+                )
+            ]
+
+        elif name == "list_screenshots":
+            response = await qontinui.list_screenshots()
+            return [
+                types.TextContent(
+                    type="text", text=json.dumps(response.__dict__, indent=2)
+                )
+            ]
+
+        elif name == "read_runner_logs":
+            log_type = arguments.get("log_type", "all")
+            limit = arguments.get("limit", 100)
+            response = await qontinui.read_runner_logs(log_type=log_type, limit=limit)
+            return [
+                types.TextContent(
+                    type="text", text=json.dumps(response.__dict__, indent=2)
+                )
+            ]
+
+        elif name == "get_automation_runs":
+            config_id = arguments.get("config_id")
+            limit = arguments.get("limit", 20)
+            response = await qontinui.get_automation_runs(
+                config_id=config_id, limit=limit
+            )
+            return [
+                types.TextContent(
+                    type="text", text=json.dumps(response.__dict__, indent=2)
+                )
+            ]
+
+        elif name == "get_automation_run":
+            run_id = arguments.get("run_id", "")
+            response = await qontinui.get_automation_run(run_id)
             return [
                 types.TextContent(
                     type="text", text=json.dumps(response.__dict__, indent=2)
