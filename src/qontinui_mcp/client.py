@@ -21,10 +21,19 @@ EXECUTION_TIMEOUT = 300.0
 
 # Results directory for QA feedback loop
 # This is the same location used by qontinui-runner-mcp
+# Paths are configurable via environment variables with WSL-style defaults
 AUTOMATION_RESULTS_DIR = Path(
-    "/mnt/c/Users/Joshua/Documents/qontinui_parent_directory/.automation-results"
+    os.environ.get(
+        "QONTINUI_RESULTS_DIR",
+        "/mnt/c/Users/Joshua/Documents/qontinui_parent_directory/.automation-results",
+    )
 )
-DEV_LOGS_DIR = Path("/mnt/c/Users/Joshua/Documents/qontinui_parent_directory/.dev-logs")
+DEV_LOGS_DIR = Path(
+    os.environ.get(
+        "QONTINUI_DEV_LOGS_DIR",
+        "/mnt/c/Users/Joshua/Documents/qontinui_parent_directory/.dev-logs",
+    )
+)
 MAX_HISTORY_RUNS = 10
 
 
