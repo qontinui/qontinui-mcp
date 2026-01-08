@@ -220,6 +220,246 @@ TOOLS = [
             "required": ["run_id"],
         },
     ),
+    # Test Management Tools
+    types.Tool(
+        name="list_tests",
+        description="List all verification tests. Filter by type (playwright_cdp, qontinui_vision, python_script, repository_test) or category.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "enabled_only": {
+                    "type": "boolean",
+                    "description": "Only return enabled tests (default: false)",
+                    "default": False,
+                },
+                "test_type": {
+                    "type": "string",
+                    "description": "Filter by test type",
+                    "enum": [
+                        "playwright_cdp",
+                        "qontinui_vision",
+                        "python_script",
+                        "repository_test",
+                    ],
+                },
+                "category": {
+                    "type": "string",
+                    "description": "Filter by category (visual, dom, network, data, log, layout, unit, integration, custom)",
+                },
+            },
+        },
+    ),
+    types.Tool(
+        name="get_test",
+        description="Get a specific verification test by ID with full details including code and configuration.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "test_id": {
+                    "type": "string",
+                    "description": "The test ID to retrieve",
+                },
+            },
+            "required": ["test_id"],
+        },
+    ),
+    types.Tool(
+        name="execute_test",
+        description="Execute a verification test by ID. Returns execution result including pass/fail status, output, assertions, and screenshots.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "test_id": {
+                    "type": "string",
+                    "description": "The test ID to execute",
+                },
+                "task_run_id": {
+                    "type": "string",
+                    "description": "Optional task run ID to link results to",
+                },
+            },
+            "required": ["test_id"],
+        },
+    ),
+    types.Tool(
+        name="list_test_results",
+        description="List test results with optional filtering by test, task run, or status.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "test_id": {
+                    "type": "string",
+                    "description": "Filter results by test ID",
+                },
+                "task_run_id": {
+                    "type": "string",
+                    "description": "Filter results by task run ID",
+                },
+                "status": {
+                    "type": "string",
+                    "description": "Filter by status",
+                    "enum": ["passed", "failed", "error", "timeout", "skipped"],
+                },
+                "limit": {
+                    "type": "integer",
+                    "description": "Maximum results to return (default: 100)",
+                    "default": 100,
+                },
+            },
+        },
+    ),
+    types.Tool(
+        name="get_test_history",
+        description="Get test history summary with aggregated statistics including pass rate, total runs, and recent results.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "test_id": {
+                    "type": "string",
+                    "description": "Optional test ID to filter history for a specific test",
+                },
+                "limit": {
+                    "type": "integer",
+                    "description": "Maximum results to aggregate (default: 1000)",
+                    "default": 1000,
+                },
+            },
+        },
+    ),
+    types.Tool(
+        name="create_test",
+        description="Create a new verification test. Use this to define automated tests that verify application behavior. Supports Playwright CDP (browser DOM assertions), Python scripts (custom verification logic), and repository tests (pytest, Jest, etc.).",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "description": "Human-readable test name",
+                },
+                "test_type": {
+                    "type": "string",
+                    "description": "Type of test to create",
+                    "enum": [
+                        "playwright_cdp",
+                        "qontinui_vision",
+                        "python_script",
+                        "repository_test",
+                    ],
+                },
+                "description": {
+                    "type": "string",
+                    "description": "Description of what the test verifies",
+                },
+                "category": {
+                    "type": "string",
+                    "description": "Test category for organization",
+                    "enum": [
+                        "visual",
+                        "dom",
+                        "network",
+                        "data",
+                        "log",
+                        "layout",
+                        "unit",
+                        "integration",
+                        "custom",
+                    ],
+                },
+                "playwright_code": {
+                    "type": "string",
+                    "description": "TypeScript/JavaScript code for playwright_cdp tests. Should use Playwright expect assertions.",
+                },
+                "python_code": {
+                    "type": "string",
+                    "description": "Python code for python_script tests. Should return JSON with status, assertions, output fields.",
+                },
+                "repo_test_command": {
+                    "type": "string",
+                    "description": "Command to run for repository_test (e.g., 'pytest tests/test_api.py -v')",
+                },
+                "repo_test_working_directory": {
+                    "type": "string",
+                    "description": "Working directory for repository tests (default: project root)",
+                },
+                "timeout_seconds": {
+                    "type": "integer",
+                    "description": "Test timeout in seconds (default: 60)",
+                    "default": 60,
+                },
+                "is_critical": {
+                    "type": "boolean",
+                    "description": "If true, test failure fails the entire task (default: true)",
+                    "default": True,
+                },
+                "success_criteria": {
+                    "type": "string",
+                    "description": "Natural language description of what success looks like (for documentation)",
+                },
+                "tags": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Tags for organization and filtering",
+                },
+            },
+            "required": ["name", "test_type"],
+        },
+    ),
+    types.Tool(
+        name="update_test",
+        description="Update an existing verification test by ID. Only provided fields will be updated.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "test_id": {
+                    "type": "string",
+                    "description": "ID of the test to update",
+                },
+                "name": {
+                    "type": "string",
+                    "description": "New test name",
+                },
+                "description": {
+                    "type": "string",
+                    "description": "New description",
+                },
+                "playwright_code": {
+                    "type": "string",
+                    "description": "New Playwright code (for playwright_cdp tests)",
+                },
+                "python_code": {
+                    "type": "string",
+                    "description": "New Python code (for python_script tests)",
+                },
+                "timeout_seconds": {
+                    "type": "integer",
+                    "description": "New timeout in seconds",
+                },
+                "is_critical": {
+                    "type": "boolean",
+                    "description": "Whether test failure fails the task",
+                },
+                "enabled": {
+                    "type": "boolean",
+                    "description": "Whether test is enabled",
+                },
+            },
+            "required": ["test_id"],
+        },
+    ),
+    types.Tool(
+        name="delete_test",
+        description="Delete a verification test by ID. This is permanent and cannot be undone.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "test_id": {
+                    "type": "string",
+                    "description": "ID of the test to delete",
+                },
+            },
+            "required": ["test_id"],
+        },
+    ),
 ]
 
 
@@ -395,6 +635,182 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[types.TextCont
         elif name == "get_automation_run":
             run_id = arguments.get("run_id", "")
             response = await qontinui.get_automation_run(run_id)
+            return [
+                types.TextContent(
+                    type="text", text=json.dumps(response.__dict__, indent=2)
+                )
+            ]
+
+        # Test Management Tools
+        elif name == "list_tests":
+            enabled_only = arguments.get("enabled_only", False)
+            test_type = arguments.get("test_type")
+            category = arguments.get("category")
+            response = await qontinui.list_tests(
+                enabled_only=enabled_only,
+                test_type=test_type,
+                category=category,
+            )
+            return [
+                types.TextContent(
+                    type="text", text=json.dumps(response.__dict__, indent=2)
+                )
+            ]
+
+        elif name == "get_test":
+            test_id = arguments.get("test_id", "")
+            if not test_id:
+                return [
+                    types.TextContent(
+                        type="text",
+                        text=json.dumps(
+                            {"success": False, "error": "test_id is required"},
+                            indent=2,
+                        ),
+                    )
+                ]
+            response = await qontinui.get_test(test_id)
+            return [
+                types.TextContent(
+                    type="text", text=json.dumps(response.__dict__, indent=2)
+                )
+            ]
+
+        elif name == "execute_test":
+            test_id = arguments.get("test_id", "")
+            if not test_id:
+                return [
+                    types.TextContent(
+                        type="text",
+                        text=json.dumps(
+                            {"success": False, "error": "test_id is required"},
+                            indent=2,
+                        ),
+                    )
+                ]
+            task_run_id = arguments.get("task_run_id")
+            response = await qontinui.execute_test(test_id, task_run_id)
+            return [
+                types.TextContent(
+                    type="text", text=json.dumps(response.__dict__, indent=2)
+                )
+            ]
+
+        elif name == "list_test_results":
+            test_id = arguments.get("test_id")
+            task_run_id = arguments.get("task_run_id")
+            status = arguments.get("status")
+            limit = arguments.get("limit", 100)
+            response = await qontinui.list_test_results(
+                test_id=test_id,
+                task_run_id=task_run_id,
+                status=status,
+                limit=limit,
+            )
+            return [
+                types.TextContent(
+                    type="text", text=json.dumps(response.__dict__, indent=2)
+                )
+            ]
+
+        elif name == "get_test_history":
+            test_id = arguments.get("test_id")
+            limit = arguments.get("limit", 1000)
+            response = await qontinui.get_test_history(test_id=test_id, limit=limit)
+            return [
+                types.TextContent(
+                    type="text", text=json.dumps(response.__dict__, indent=2)
+                )
+            ]
+
+        elif name == "create_test":
+            test_name = arguments.get("name", "")
+            test_type = arguments.get("test_type", "")
+            if not test_name or not test_type:
+                return [
+                    types.TextContent(
+                        type="text",
+                        text=json.dumps(
+                            {
+                                "success": False,
+                                "error": "name and test_type are required",
+                            },
+                            indent=2,
+                        ),
+                    )
+                ]
+            # Build repo_test_config if applicable
+            repo_test_config = None
+            if test_type == "repository_test":
+                command = arguments.get("repo_test_command")
+                if command:
+                    repo_test_config = {
+                        "command": command,
+                        "working_directory": arguments.get(
+                            "repo_test_working_directory", "${PROJECT_ROOT}"
+                        ),
+                        "parse_format": "generic",
+                    }
+            response = await qontinui.create_test(
+                name=test_name,
+                test_type=test_type,
+                description=arguments.get("description"),
+                category=arguments.get("category"),
+                playwright_code=arguments.get("playwright_code"),
+                python_code=arguments.get("python_code"),
+                repo_test_config=repo_test_config,
+                timeout_seconds=arguments.get("timeout_seconds", 60),
+                is_critical=arguments.get("is_critical", True),
+                success_criteria=arguments.get("success_criteria"),
+                tags=arguments.get("tags"),
+            )
+            return [
+                types.TextContent(
+                    type="text", text=json.dumps(response.__dict__, indent=2)
+                )
+            ]
+
+        elif name == "update_test":
+            test_id = arguments.get("test_id", "")
+            if not test_id:
+                return [
+                    types.TextContent(
+                        type="text",
+                        text=json.dumps(
+                            {"success": False, "error": "test_id is required"},
+                            indent=2,
+                        ),
+                    )
+                ]
+            response = await qontinui.update_test(
+                test_id=test_id,
+                name=arguments.get("name"),
+                description=arguments.get("description"),
+                playwright_code=arguments.get("playwright_code"),
+                python_code=arguments.get("python_code"),
+                timeout_seconds=arguments.get("timeout_seconds"),
+                is_critical=arguments.get("is_critical"),
+                enabled=arguments.get("enabled"),
+            )
+            return [
+                types.TextContent(
+                    type="text", text=json.dumps(response.__dict__, indent=2)
+                )
+            ]
+
+        elif name == "delete_test":
+            test_id = arguments.get("test_id", "")
+            if not test_id:
+                return [
+                    types.TextContent(
+                        type="text",
+                        text=json.dumps(
+                            {"success": False, "error": "test_id is required"},
+                            indent=2,
+                        ),
+                    )
+                ]
+            response = await qontinui.delete_test(test_id)
             return [
                 types.TextContent(
                     type="text", text=json.dumps(response.__dict__, indent=2)

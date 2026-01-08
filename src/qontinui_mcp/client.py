@@ -284,6 +284,10 @@ class QontinuiClient:
                 response = await client.get(url, timeout=timeout)
             elif method == "POST":
                 response = await client.post(url, json=json_data, timeout=timeout)
+            elif method == "PUT":
+                response = await client.put(url, json=json_data, timeout=timeout)
+            elif method == "DELETE":
+                response = await client.delete(url, timeout=timeout)
             else:
                 return RunnerResponse(
                     success=False, error=f"Unsupported method: {method}"
@@ -609,6 +613,283 @@ class QontinuiClient:
 
         config_loaded = response.data.get("config_loaded", False)
         return bool(config_loaded)
+
+    # -------------------------------------------------------------------------
+    # Test API Methods
+    # -------------------------------------------------------------------------
+
+    async def list_tests(
+        self,
+        enabled_only: bool = False,
+        test_type: str | None = None,
+        category: str | None = None,
+    ) -> RunnerResponse:
+        """List all verification tests.
+
+        Args:
+            enabled_only: Only return enabled tests.
+            test_type: Filter by test type (playwright_cdp, qontinui_vision, python_script, repository_test).
+            category: Filter by category.
+
+        Returns:
+            RunnerResponse with list of tests.
+        """
+        params = []
+        if enabled_only:
+            params.append("enabled_only=true")
+        if test_type:
+            params.append(f"test_type={test_type}")
+        if category:
+            params.append(f"category={category}")
+
+        endpoint = "/tests"
+        if params:
+            endpoint += "?" + "&".join(params)
+
+        return await self._request("GET", endpoint)
+
+    async def get_test(self, test_id: str) -> RunnerResponse:
+        """Get a verification test by ID.
+
+        Args:
+            test_id: The test ID.
+
+        Returns:
+            RunnerResponse with test data.
+        """
+        return await self._request("GET", f"/tests/{test_id}")
+
+    async def execute_test(
+        self,
+        test_id: str,
+        task_run_id: str | None = None,
+    ) -> RunnerResponse:
+        """Execute a verification test by ID.
+
+        Args:
+            test_id: The test ID to execute.
+            task_run_id: Optional task run ID to link results to.
+
+        Returns:
+            RunnerResponse with execution result.
+        """
+        return await self._request(
+            "POST",
+            f"/tests/{test_id}/execute",
+            {"task_run_id": task_run_id},
+            timeout=EXECUTION_TIMEOUT,
+        )
+
+    async def execute_test_suite(
+        self,
+        tests: list[dict[str, Any]],
+        parallel: bool = False,
+        stop_on_failure: bool = False,
+    ) -> RunnerResponse:
+        """Execute multiple tests as a suite.
+
+        Args:
+            tests: List of test definitions.
+            parallel: Run tests in parallel.
+            stop_on_failure: Stop on first failure.
+
+        Returns:
+            RunnerResponse with suite results.
+        """
+        return await self._request(
+            "POST",
+            "/tests/execute-suite",
+            {
+                "tests": tests,
+                "parallel": parallel,
+                "stop_on_failure": stop_on_failure,
+            },
+            timeout=EXECUTION_TIMEOUT,
+        )
+
+    async def list_test_results(
+        self,
+        test_id: str | None = None,
+        task_run_id: str | None = None,
+        status: str | None = None,
+        limit: int = 100,
+    ) -> RunnerResponse:
+        """List test results with optional filtering.
+
+        Args:
+            test_id: Filter by test ID.
+            task_run_id: Filter by task run ID.
+            status: Filter by status (passed, failed, error, timeout, skipped).
+            limit: Maximum results to return.
+
+        Returns:
+            RunnerResponse with list of test results.
+        """
+        params = [f"limit={limit}"]
+        if test_id:
+            params.append(f"test_id={test_id}")
+        if task_run_id:
+            params.append(f"task_run_id={task_run_id}")
+        if status:
+            params.append(f"status={status}")
+
+        endpoint = "/test-results?" + "&".join(params)
+        return await self._request("GET", endpoint)
+
+    async def get_test_result(self, result_id: str) -> RunnerResponse:
+        """Get a specific test result by ID.
+
+        Args:
+            result_id: The result ID.
+
+        Returns:
+            RunnerResponse with test result.
+        """
+        return await self._request("GET", f"/test-results/{result_id}")
+
+    async def get_test_history(
+        self,
+        test_id: str | None = None,
+        limit: int = 1000,
+    ) -> RunnerResponse:
+        """Get test history summary with aggregated stats.
+
+        Args:
+            test_id: Optional test ID to filter history.
+            limit: Maximum results to aggregate.
+
+        Returns:
+            RunnerResponse with history summary including pass rate, totals, etc.
+        """
+        params = [f"limit={limit}"]
+        if test_id:
+            params.append(f"test_id={test_id}")
+
+        endpoint = "/tests/history?" + "&".join(params)
+        return await self._request("GET", endpoint)
+
+    async def create_test(
+        self,
+        name: str,
+        test_type: str,
+        description: str | None = None,
+        category: str | None = None,
+        playwright_code: str | None = None,
+        python_code: str | None = None,
+        repo_test_config: dict[str, Any] | None = None,
+        timeout_seconds: int = 60,
+        is_critical: bool = True,
+        success_criteria: str | None = None,
+        tags: list[str] | None = None,
+    ) -> RunnerResponse:
+        """Create a new verification test.
+
+        Args:
+            name: Human-readable test name.
+            test_type: Type of test (playwright_cdp, qontinui_vision, python_script, repository_test).
+            description: Description of what the test verifies.
+            category: Test category (visual, dom, network, data, log, layout, unit, integration, custom).
+            playwright_code: TypeScript/JavaScript code for playwright_cdp tests.
+            python_code: Python code for python_script tests.
+            repo_test_config: Configuration dict for repository_test (command, working_directory, parse_format).
+            timeout_seconds: Test timeout in seconds.
+            is_critical: If true, test failure fails the entire task.
+            success_criteria: Natural language description of success criteria.
+            tags: List of tags for organization.
+
+        Returns:
+            RunnerResponse with created test.
+        """
+        payload: dict[str, Any] = {
+            "name": name,
+            "test_type": test_type,
+            "timeout_seconds": timeout_seconds,
+            "is_critical": is_critical,
+            "enabled": True,
+            "ai_generated": True,  # Mark as AI-generated when created via MCP
+            "tags": tags or [],
+        }
+        if description:
+            payload["description"] = description
+        if category:
+            payload["category"] = category
+        if playwright_code:
+            payload["playwright_code"] = playwright_code
+        if python_code:
+            payload["python_code"] = python_code
+        if repo_test_config:
+            payload["repo_test_config"] = repo_test_config
+        if success_criteria:
+            payload["success_criteria"] = success_criteria
+
+        return await self._request("POST", "/tests", payload)
+
+    async def update_test(
+        self,
+        test_id: str,
+        name: str | None = None,
+        description: str | None = None,
+        playwright_code: str | None = None,
+        python_code: str | None = None,
+        timeout_seconds: int | None = None,
+        is_critical: bool | None = None,
+        enabled: bool | None = None,
+    ) -> RunnerResponse:
+        """Update an existing verification test.
+
+        Args:
+            test_id: ID of the test to update.
+            name: New test name.
+            description: New description.
+            playwright_code: New Playwright code.
+            python_code: New Python code.
+            timeout_seconds: New timeout in seconds.
+            is_critical: Whether test failure fails the task.
+            enabled: Whether test is enabled.
+
+        Returns:
+            RunnerResponse with updated test.
+        """
+        # First get the existing test to preserve fields
+        existing = await self._request("GET", f"/tests/{test_id}")
+        if not existing.success or not existing.data:
+            return existing
+
+        # Build update payload starting from existing data
+        payload = existing.data.copy() if isinstance(existing.data, dict) else {}
+
+        # Update provided fields
+        if name is not None:
+            payload["name"] = name
+        if description is not None:
+            payload["description"] = description
+        if playwright_code is not None:
+            payload["playwright_code"] = playwright_code
+        if python_code is not None:
+            payload["python_code"] = python_code
+        if timeout_seconds is not None:
+            payload["timeout_seconds"] = timeout_seconds
+        if is_critical is not None:
+            payload["is_critical"] = is_critical
+        if enabled is not None:
+            payload["enabled"] = enabled
+
+        return await self._request("PUT", f"/tests/{test_id}", payload)
+
+    async def delete_test(self, test_id: str) -> RunnerResponse:
+        """Delete a verification test.
+
+        Args:
+            test_id: ID of the test to delete.
+
+        Returns:
+            RunnerResponse with deletion confirmation.
+        """
+        return await self._request("DELETE", f"/tests/{test_id}")
+
+    # -------------------------------------------------------------------------
+    # Log API Methods
+    # -------------------------------------------------------------------------
 
     async def read_runner_logs(
         self,
