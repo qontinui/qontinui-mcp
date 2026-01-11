@@ -460,6 +460,58 @@ TOOLS = [
             "required": ["test_id"],
         },
     ),
+    # DOM Capture Tools
+    types.Tool(
+        name="list_dom_captures",
+        description="List DOM captures (HTML snapshots) from browser pages. Use this to find captured page HTML for debugging UI/styling issues.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "task_run_id": {
+                    "type": "string",
+                    "description": "Filter by task run ID to get captures from a specific task",
+                },
+                "source": {
+                    "type": "string",
+                    "description": "Filter by capture source",
+                    "enum": ["playwright", "extension"],
+                },
+                "limit": {
+                    "type": "integer",
+                    "description": "Maximum number of captures to return (default: 50)",
+                    "default": 50,
+                },
+            },
+        },
+    ),
+    types.Tool(
+        name="get_dom_capture",
+        description="Get metadata for a specific DOM capture by ID.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "capture_id": {
+                    "type": "string",
+                    "description": "The DOM capture ID",
+                },
+            },
+            "required": ["capture_id"],
+        },
+    ),
+    types.Tool(
+        name="get_dom_capture_html",
+        description="Get the full HTML content of a DOM capture. Use this to analyze page structure for debugging UI/styling issues.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "capture_id": {
+                    "type": "string",
+                    "description": "The DOM capture ID",
+                },
+            },
+            "required": ["capture_id"],
+        },
+    ),
 ]
 
 
@@ -811,6 +863,60 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[types.TextCont
                     )
                 ]
             response = await qontinui.delete_test(test_id)
+            return [
+                types.TextContent(
+                    type="text", text=json.dumps(response.__dict__, indent=2)
+                )
+            ]
+
+        # DOM Capture Tools
+        elif name == "list_dom_captures":
+            task_run_id = arguments.get("task_run_id")
+            source = arguments.get("source")
+            limit = arguments.get("limit", 50)
+            response = await qontinui.list_dom_captures(
+                task_run_id=task_run_id,
+                source=source,
+                limit=limit,
+            )
+            return [
+                types.TextContent(
+                    type="text", text=json.dumps(response.__dict__, indent=2)
+                )
+            ]
+
+        elif name == "get_dom_capture":
+            capture_id = arguments.get("capture_id", "")
+            if not capture_id:
+                return [
+                    types.TextContent(
+                        type="text",
+                        text=json.dumps(
+                            {"success": False, "error": "capture_id is required"},
+                            indent=2,
+                        ),
+                    )
+                ]
+            response = await qontinui.get_dom_capture(capture_id)
+            return [
+                types.TextContent(
+                    type="text", text=json.dumps(response.__dict__, indent=2)
+                )
+            ]
+
+        elif name == "get_dom_capture_html":
+            capture_id = arguments.get("capture_id", "")
+            if not capture_id:
+                return [
+                    types.TextContent(
+                        type="text",
+                        text=json.dumps(
+                            {"success": False, "error": "capture_id is required"},
+                            indent=2,
+                        ),
+                    )
+                ]
+            response = await qontinui.get_dom_capture_html(capture_id)
             return [
                 types.TextContent(
                     type="text", text=json.dumps(response.__dict__, indent=2)

@@ -966,3 +966,59 @@ class QontinuiClient:
             }
 
         return RunnerResponse(success=True, data=result)
+
+    # -------------------------------------------------------------------------
+    # DOM Capture API Methods
+    # -------------------------------------------------------------------------
+
+    async def list_dom_captures(
+        self,
+        task_run_id: str | None = None,
+        source: str | None = None,
+        limit: int = 50,
+    ) -> RunnerResponse:
+        """List DOM captures with optional filtering.
+
+        Args:
+            task_run_id: Filter by task run ID.
+            source: Filter by source ('playwright' or 'extension').
+            limit: Maximum number of captures to return (default: 50).
+
+        Returns:
+            RunnerResponse with list of DOM capture metadata.
+        """
+        params = []
+        if task_run_id:
+            params.append(f"task_run_id={task_run_id}")
+        if source:
+            params.append(f"source={source}")
+        if limit != 50:
+            params.append(f"limit={limit}")
+
+        endpoint = "/dom/captures"
+        if params:
+            endpoint += "?" + "&".join(params)
+
+        return await self._request("GET", endpoint)
+
+    async def get_dom_capture(self, capture_id: str) -> RunnerResponse:
+        """Get metadata for a specific DOM capture.
+
+        Args:
+            capture_id: The DOM capture ID.
+
+        Returns:
+            RunnerResponse with capture metadata.
+        """
+        return await self._request("GET", f"/dom/captures/{capture_id}")
+
+    async def get_dom_capture_html(self, capture_id: str) -> RunnerResponse:
+        """Get the HTML content of a DOM capture.
+
+        Args:
+            capture_id: The DOM capture ID.
+
+        Returns:
+            RunnerResponse with HTML content.
+        """
+        return await self._request("GET", f"/dom/captures/{capture_id}/html")
