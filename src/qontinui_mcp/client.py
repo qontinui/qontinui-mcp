@@ -1362,6 +1362,13 @@ class QontinuiClient:
         description: str,
         category: str | None = None,
         tags: list[str] | None = None,
+        max_iterations: int | None = None,
+        provider: str | None = None,
+        model: str | None = None,
+        skip_ai_summary: bool | None = None,
+        log_source_selection: str | None = None,
+        prompt_template: str | None = None,
+        auto_include_contexts: bool | None = None,
     ) -> RunnerResponse:
         """Generate a UnifiedWorkflow from a natural language description using AI.
 
@@ -1376,6 +1383,22 @@ class QontinuiClient:
             category: Optional category for the workflow (e.g., 'testing',
                 'development', 'deployment').
             tags: Optional list of tags for the workflow.
+            max_iterations: Maximum iterations for the agentic phase (default: 10).
+            provider: AI provider override. Options: 'claude_cli', 'anthropic_api',
+                'openai_api', 'gemini_api'.
+            model: Model override (depends on provider, e.g., 'claude-3-opus',
+                'gpt-4', 'gemini-pro').
+            skip_ai_summary: Skip AI summary generation at the end (default: false).
+            log_source_selection: Log source selection mode. Options:
+                - 'default': Use global default profile
+                - 'ai': Let AI automatically select relevant sources
+                - 'all': Use all enabled log sources
+                - Or a specific profile_id string
+            prompt_template: Custom developer prompt template for the workflow.
+                Supports variables: {{SESSION_ID}}, {{ITERATION}}, {{MAX_ITERATIONS}},
+                {{GOAL}}, {{EXECUTION_STEPS}}, {{WORKSPACE_ESCAPED}}.
+            auto_include_contexts: Whether to auto-include contexts based on task
+                mentions (default: true).
 
         Returns:
             RunnerResponse with:
@@ -1390,6 +1413,8 @@ class QontinuiClient:
                 description="Run TypeScript type checking and fix any errors",
                 category="development",
                 tags=["typescript", "types"],
+                max_iterations=15,
+                provider="anthropic_api",
             )
             if result.success:
                 workflow = result.data["workflow"]
@@ -1401,6 +1426,20 @@ class QontinuiClient:
             payload["category"] = category
         if tags:
             payload["tags"] = tags
+        if max_iterations is not None:
+            payload["max_iterations"] = max_iterations
+        if provider:
+            payload["provider"] = provider
+        if model:
+            payload["model"] = model
+        if skip_ai_summary is not None:
+            payload["skip_ai_summary"] = skip_ai_summary
+        if log_source_selection:
+            payload["log_source_selection"] = log_source_selection
+        if prompt_template:
+            payload["prompt_template"] = prompt_template
+        if auto_include_contexts is not None:
+            payload["auto_include_contexts"] = auto_include_contexts
 
         # Generation may take a while depending on AI response time
         return await self._request(

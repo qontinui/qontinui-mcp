@@ -823,6 +823,49 @@ TOOLS = [
                     "items": {"type": "string"},
                     "description": "Tags for the workflow (e.g., ['typescript', 'react', 'testing'])",
                 },
+                "max_iterations": {
+                    "type": "integer",
+                    "description": "Maximum iterations for agentic phase (default: 10). "
+                    "This controls how many verification/agentic loops can occur.",
+                    "default": 10,
+                },
+                "provider": {
+                    "type": "string",
+                    "description": "AI provider override for the workflow. Options: "
+                    "'claude_cli', 'anthropic_api', 'openai_api', 'gemini_api'. "
+                    "Leave empty to use the default from Settings.",
+                    "enum": ["claude_cli", "anthropic_api", "openai_api", "gemini_api"],
+                },
+                "model": {
+                    "type": "string",
+                    "description": "Model override (depends on provider). Examples: "
+                    "'claude-sonnet-4-20250514', 'gpt-4o', 'gemini-3-flash-preview'. "
+                    "Leave empty to use the provider's default.",
+                },
+                "skip_ai_summary": {
+                    "type": "boolean",
+                    "description": "Skip AI summary generation at the end of workflow execution. "
+                    "Default: false (summary is generated).",
+                    "default": False,
+                },
+                "log_source_selection": {
+                    "type": "string",
+                    "description": "Log source selection mode: 'default' (use global profile), "
+                    "'ai' (let AI select), 'all' (use all sources), or a specific profile_id.",
+                    "default": "default",
+                },
+                "prompt_template": {
+                    "type": "string",
+                    "description": "Custom developer prompt template for the workflow's agentic phase. "
+                    "Supports variables: {{SESSION_ID}}, {{ITERATION}}, {{MAX_ITERATIONS}}, "
+                    "{{GOAL}}, {{EXECUTION_STEPS}}, {{WORKSPACE_ESCAPED}}.",
+                },
+                "auto_include_contexts": {
+                    "type": "boolean",
+                    "description": "Whether to auto-include AI contexts based on task mentions. "
+                    "Default: true.",
+                    "default": True,
+                },
             },
             "required": ["description"],
         },
@@ -1460,12 +1503,17 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[types.TextCont
                         ),
                     )
                 ]
-            category = arguments.get("category")
-            tags = arguments.get("tags")
             response = await qontinui.generate_workflow(
                 description=description,
-                category=category,
-                tags=tags,
+                category=arguments.get("category"),
+                tags=arguments.get("tags"),
+                max_iterations=arguments.get("max_iterations"),
+                provider=arguments.get("provider"),
+                model=arguments.get("model"),
+                skip_ai_summary=arguments.get("skip_ai_summary"),
+                log_source_selection=arguments.get("log_source_selection"),
+                prompt_template=arguments.get("prompt_template"),
+                auto_include_contexts=arguments.get("auto_include_contexts"),
             )
             return [
                 types.TextContent(
