@@ -798,6 +798,35 @@ TOOLS = [
             "required": ["task"],
         },
     ),
+    # Workflow Generation
+    types.Tool(
+        name="generate_workflow",
+        description="Generate a UnifiedWorkflow from a natural language description using AI. "
+        "The AI will create a complete workflow with appropriate setup, verification, agentic, "
+        "and completion steps based on the description. The generated workflow can then be "
+        "loaded into the Workflow Builder for editing or saved directly.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string",
+                    "description": "Natural language description of what the workflow should do. "
+                    "Be specific about the task, e.g., 'Run TypeScript type checking and fix errors' "
+                    "or 'Build a React app and run Playwright tests, fixing any failures'.",
+                },
+                "category": {
+                    "type": "string",
+                    "description": "Category for the workflow (e.g., 'testing', 'development', 'deployment')",
+                },
+                "tags": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Tags for the workflow (e.g., ['typescript', 'react', 'testing'])",
+                },
+            },
+            "required": ["description"],
+        },
+    ),
 ]
 
 
@@ -1412,6 +1441,31 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[types.TextCont
                 tools=tools,
                 max_iterations=max_iterations,
                 context=context,
+            )
+            return [
+                types.TextContent(
+                    type="text", text=json.dumps(response.__dict__, indent=2)
+                )
+            ]
+
+        elif name == "generate_workflow":
+            description = arguments.get("description", "")
+            if not description:
+                return [
+                    types.TextContent(
+                        type="text",
+                        text=json.dumps(
+                            {"success": False, "error": "description is required"},
+                            indent=2,
+                        ),
+                    )
+                ]
+            category = arguments.get("category")
+            tags = arguments.get("tags")
+            response = await qontinui.generate_workflow(
+                description=description,
+                category=category,
+                tags=tags,
             )
             return [
                 types.TextContent(

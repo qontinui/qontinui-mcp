@@ -1354,6 +1354,63 @@ class QontinuiClient:
         )
 
     # -------------------------------------------------------------------------
+    # Workflow Generation
+    # -------------------------------------------------------------------------
+
+    async def generate_workflow(
+        self,
+        description: str,
+        category: str | None = None,
+        tags: list[str] | None = None,
+    ) -> RunnerResponse:
+        """Generate a UnifiedWorkflow from a natural language description using AI.
+
+        This method sends a description to the runner, which uses AI to generate
+        a complete workflow with appropriate setup, verification, agentic, and
+        completion steps.
+
+        Args:
+            description: Natural language description of what the workflow should do.
+                Be specific about the task, e.g., "Run TypeScript type checking
+                and fix any errors" or "Build a React app and run Playwright tests".
+            category: Optional category for the workflow (e.g., 'testing',
+                'development', 'deployment').
+            tags: Optional list of tags for the workflow.
+
+        Returns:
+            RunnerResponse with:
+            - workflow: The generated UnifiedWorkflow object (if successful)
+            - validation_errors: List of any validation issues found
+            - success: Whether generation was successful
+            - error: Error message if generation failed
+
+        Example:
+            ```python
+            result = await client.generate_workflow(
+                description="Run TypeScript type checking and fix any errors",
+                category="development",
+                tags=["typescript", "types"],
+            )
+            if result.success:
+                workflow = result.data["workflow"]
+                print(f"Generated workflow: {workflow['name']}")
+            ```
+        """
+        payload: dict[str, Any] = {"description": description}
+        if category:
+            payload["category"] = category
+        if tags:
+            payload["tags"] = tags
+
+        # Generation may take a while depending on AI response time
+        return await self._request(
+            "POST",
+            "/unified-workflows/generate",
+            payload,
+            timeout=120.0,  # 2 minute timeout for AI generation
+        )
+
+    # -------------------------------------------------------------------------
     # Event Streaming
     # -------------------------------------------------------------------------
 
