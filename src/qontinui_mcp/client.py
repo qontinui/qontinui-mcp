@@ -8,7 +8,7 @@ import os
 import shutil
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 import httpx
 from qontinui_schemas.common import utc_now
@@ -333,6 +333,14 @@ class QontinuiClient:
     async def status(self) -> RunnerResponse:
         """Get runner status."""
         return await self._request("GET", "/status")
+
+    async def get_tool_version(self) -> RunnerResponse:
+        """Get tool version for MCP caching.
+
+        Returns version hash, tool count, and test count.
+        Used by MCP server to invalidate tool cache when tools change.
+        """
+        return await self._request("GET", "/tool-version")
 
     async def load_config(self, config_path: str) -> RunnerResponse:
         """Load a workflow configuration file.
@@ -967,6 +975,77 @@ class QontinuiClient:
 
         return RunnerResponse(success=True, data=result)
 
+    async def get_task_run_events(
+        self,
+        task_run_id: str,
+        event_type: str | None = None,
+        limit: int | None = None,
+    ) -> RunnerResponse:
+        """Get events for a task run from SQLite (hybrid logging).
+
+        This queries the SQLite database for historical events that have been
+        migrated from JSONL files. Use this for querying past task runs.
+        For real-time events during execution, use read_runner_logs().
+
+        Args:
+            task_run_id: The task run ID to get events for.
+            event_type: Filter by event type ('general', 'action', 'image_recognition', 'ai_output').
+            limit: Maximum number of events to return.
+
+        Returns:
+            RunnerResponse with events list.
+        """
+        params = []
+        if event_type:
+            params.append(f"event_type={event_type}")
+        if limit:
+            params.append(f"limit={limit}")
+
+        endpoint = f"/task-runs/{task_run_id}/events"
+        if params:
+            endpoint += "?" + "&".join(params)
+
+        return await self._request("GET", endpoint)
+
+    async def get_task_run_screenshots(self, task_run_id: str) -> RunnerResponse:
+        """Get screenshots for a task run from SQLite.
+
+        Args:
+            task_run_id: The task run ID to get screenshots for.
+
+        Returns:
+            RunnerResponse with screenshots list.
+        """
+        return await self._request("GET", f"/task-runs/{task_run_id}/screenshots")
+
+    async def get_task_run_playwright_results(self, task_run_id: str) -> RunnerResponse:
+        """Get Playwright test results for a task run from SQLite.
+
+        Args:
+            task_run_id: The task run ID to get Playwright results for.
+
+        Returns:
+            RunnerResponse with Playwright results list.
+        """
+        return await self._request(
+            "GET", f"/task-runs/{task_run_id}/playwright-results"
+        )
+
+    async def migrate_task_run_logs(self, task_run_id: str) -> RunnerResponse:
+        """Migrate JSONL logs to SQLite for a task run.
+
+        This reads the current JSONL files in .dev-logs/ and inserts their
+        contents into the SQLite database linked to the specified task run.
+        Useful for persisting logs after task completion.
+
+        Args:
+            task_run_id: The task run ID to migrate logs for.
+
+        Returns:
+            RunnerResponse with migration results (counts of migrated items).
+        """
+        return await self._request("POST", f"/task-runs/{task_run_id}/migrate-logs")
+
     # -------------------------------------------------------------------------
     # DOM Capture API Methods
     # -------------------------------------------------------------------------
@@ -1022,3 +1101,320 @@ class QontinuiClient:
             RunnerResponse with HTML content.
         """
         return await self._request("GET", f"/dom/captures/{capture_id}/html")
+
+    # -------------------------------------------------------------------------
+    # Inline Python Execution
+    # -------------------------------------------------------------------------
+
+    async def execute_python(
+        self,
+        code: str,
+        dependencies: list[str] | None = None,
+        timeout_seconds: int = 30,
+        working_directory: str | None = None,
+    ) -> RunnerResponse:
+        """Execute inline Python code.
+
+        This method executes Python code directly with optional dependency
+        isolation via uvx. The code is wrapped to capture return values
+        if the script returns a JSON-serializable value.
+
+        Args:
+            code: Python code to execute.
+            dependencies: Optional pip packages to install (uses uvx for isolation).
+            timeout_seconds: Execution timeout in seconds (default: 30).
+            working_directory: Working directory for execution (default: temp dir).
+
+        Returns:
+            RunnerResponse with:
+            - success: Whether execution succeeded (exit code 0)
+            - stdout: Standard output from the script
+            - stderr: Standard error from the script
+            - return_value: JSON return value if script returned data
+            - duration_ms: Execution duration in milliseconds
+
+        Example:
+            ```python
+            result = await client.execute_python(
+                code="return {'test': 'value', 'count': 42}"
+            )
+            # result.data["return_value"] == {"test": "value", "count": 42}
+            ```
+
+        Example with dependencies:
+            ```python
+            result = await client.execute_python(
+                code=\"\"\"
+                import requests
+                resp = requests.get('https://api.example.com/data')
+                return resp.json()
+                \"\"\",
+                dependencies=["requests"],
+            )
+            ```
+        """
+        payload: dict[str, Any] = {"code": code}
+        if dependencies:
+            payload["dependencies"] = dependencies
+        if timeout_seconds != 30:
+            payload["timeout_seconds"] = timeout_seconds
+        if working_directory:
+            payload["working_directory"] = working_directory
+
+        return await self._request(
+            "POST",
+            "/execute-python",
+            payload,
+            timeout=float(timeout_seconds) + 10.0,  # Add buffer for HTTP overhead
+        )
+
+    # -------------------------------------------------------------------------
+    # Agent Spawning
+    # -------------------------------------------------------------------------
+
+    async def spawn_sub_agent(
+        self,
+        task: str,
+        tools: list[str] | None = None,
+        max_iterations: int = 10,
+        context: str | None = None,
+    ) -> RunnerResponse:
+        """Spawn a sub-agent with a specific task.
+
+        This method creates a new AI session with a focused task and
+        optionally restricted tool access. The sub-agent runs autonomously
+        and returns when complete.
+
+        Args:
+            task: Task description for the sub-agent.
+            tools: Optional list of tool names to restrict the sub-agent to.
+            max_iterations: Maximum turns/iterations (default: 10).
+            context: Additional context to provide to the sub-agent.
+
+        Returns:
+            RunnerResponse with:
+            - session_id: ID of the spawned session
+            - success: Whether the sub-agent completed successfully
+            - output: Output from the sub-agent
+            - iterations_used: Number of iterations used
+            - findings: Any findings reported by the sub-agent
+
+        Example:
+            ```python
+            result = await client.spawn_sub_agent(
+                task="Verify that the login form works correctly",
+                tools=["run_workflow", "capture_screenshot", "execute_test"],
+                max_iterations=5,
+            )
+            ```
+        """
+        payload: dict[str, Any] = {
+            "task": task,
+            "max_iterations": max_iterations,
+        }
+        if tools:
+            payload["tools"] = tools
+        if context:
+            payload["context"] = context
+
+        # Sub-agents may take a while, use extended timeout
+        timeout = float(max_iterations) * 60.0 + 30.0  # 1 min per iteration + buffer
+
+        return await self._request(
+            "POST",
+            "/spawn-sub-agent",
+            payload,
+            timeout=timeout,
+        )
+
+    # -------------------------------------------------------------------------
+    # AWAS (AI Web Action Standard) API Methods
+    # -------------------------------------------------------------------------
+
+    async def awas_discover(
+        self,
+        base_url: str,
+        force_refresh: bool = False,
+    ) -> RunnerResponse:
+        """Discover AWAS manifest for a website.
+
+        Fetches the manifest from /.well-known/ai-actions.json and caches it.
+
+        Args:
+            base_url: Base URL of the website (e.g., https://example.com)
+            force_refresh: If True, bypass cache and fetch fresh manifest
+
+        Returns:
+            RunnerResponse with AWAS manifest data including:
+            - app_name: Application name
+            - description: Application description
+            - base_url: Base URL for all action endpoints
+            - actions: List of available actions
+            - auth: Authentication configuration
+            - conformance_level: AWAS conformance level (L1, L2, L3)
+        """
+        return await self._request(
+            "POST",
+            "/awas/discover",
+            {"base_url": base_url, "force_refresh": force_refresh},
+        )
+
+    async def awas_check_support(self, base_url: str) -> RunnerResponse:
+        """Check if a website supports AWAS.
+
+        Args:
+            base_url: Base URL of the website to check
+
+        Returns:
+            RunnerResponse with support info:
+            - supported: Whether AWAS is supported
+            - app_name: Application name (if supported)
+            - action_count: Number of available actions
+            - conformance_level: AWAS conformance level
+            - has_auth: Whether authentication is configured
+            - auth_type: Type of authentication (bearer_token, api_key, etc.)
+            - read_only_actions: Number of read-only (safe) actions
+        """
+        return await self._request(
+            "POST",
+            "/awas/check-support",
+            {"base_url": base_url},
+        )
+
+    async def awas_list_actions(
+        self,
+        base_url: str,
+        read_only_only: bool = False,
+    ) -> RunnerResponse:
+        """List available AWAS actions for a website.
+
+        Args:
+            base_url: Base URL of the website
+            read_only_only: If True, only return read-only (safe) actions
+
+        Returns:
+            RunnerResponse with list of actions:
+            - actions: List of action definitions with:
+              - id: Action identifier
+              - name: Human-readable name
+              - method: HTTP method (GET, POST, etc.)
+              - endpoint: API endpoint path
+              - intent: Description of what the action does
+              - side_effect: Whether the action modifies data
+              - parameters: List of parameters
+        """
+        return await self._request(
+            "POST",
+            "/awas/list-actions",
+            {"base_url": base_url, "read_only_only": read_only_only},
+        )
+
+    async def awas_execute(
+        self,
+        base_url: str,
+        action_id: str,
+        params: dict[str, Any] | None = None,
+        credentials: dict[str, Any] | None = None,
+        timeout_seconds: float | None = None,
+    ) -> RunnerResponse:
+        """Execute an AWAS action.
+
+        Args:
+            base_url: Base URL of the website (manifest must be discovered first)
+            action_id: ID of the action to execute
+            params: Parameters to pass to the action
+            credentials: Authentication credentials (token, api_key, etc.)
+            timeout_seconds: Override default timeout
+
+        Returns:
+            RunnerResponse with execution result:
+            - success: Whether the action succeeded
+            - action_id: ID of the executed action
+            - status_code: HTTP status code
+            - response_body: Response body (parsed JSON or text)
+            - response_time_ms: Response time in milliseconds
+            - error: Error message if failed
+        """
+        request_data: dict[str, Any] = {
+            "base_url": base_url,
+            "action_id": action_id,
+        }
+        if params:
+            request_data["params"] = params
+        if credentials:
+            request_data["credentials"] = credentials
+        if timeout_seconds is not None:
+            request_data["timeout_seconds"] = timeout_seconds
+
+        return await self._request(
+            "POST",
+            "/awas/execute",
+            request_data,
+            timeout=timeout_seconds or EXECUTION_TIMEOUT,
+        )
+
+    # -------------------------------------------------------------------------
+    # Event Streaming
+    # -------------------------------------------------------------------------
+
+    async def subscribe_events(
+        self,
+        callback: Callable[[dict[str, Any]], None],
+        timeout: float = 0,
+    ) -> None:
+        """Subscribe to SSE events from the runner.
+
+        Connects to the runner's SSE endpoint and calls the callback
+        for each event received. This is useful for real-time monitoring
+        of workflow execution, test results, etc.
+
+        Args:
+            callback: Function to call with each event (dict with event data)
+            timeout: Maximum time to listen (0 = indefinite)
+
+        Event types received:
+            - qontinui/execution_started: Workflow begins
+            - qontinui/execution_progress: Step completion
+            - qontinui/execution_completed: Workflow ends
+            - qontinui/test_started: Test begins
+            - qontinui/test_completed: Test ends
+            - qontinui/image_recognition: Match found/failed
+            - qontinui/error: Error occurs
+            - qontinui/warning: Non-fatal issue
+        """
+        import asyncio
+
+        url = f"{self.base_url}/sse/events"
+        start_time = asyncio.get_event_loop().time()
+
+        try:
+            async with httpx.AsyncClient() as client:
+                async with client.stream("GET", url, timeout=None) as response:
+                    async for line in response.aiter_lines():
+                        # Check timeout
+                        if timeout > 0:
+                            elapsed = asyncio.get_event_loop().time() - start_time
+                            if elapsed > timeout:
+                                logger.info(
+                                    f"SSE subscription timed out after {elapsed:.1f}s"
+                                )
+                                break
+
+                        # Parse SSE format
+                        if line.startswith("data: "):
+                            data_str = line[6:]  # Remove "data: " prefix
+                            try:
+                                event_data = json.loads(data_str)
+                                callback(event_data)
+                            except json.JSONDecodeError as e:
+                                logger.warning(f"Failed to parse SSE event: {e}")
+                        elif line.startswith("event: "):
+                            # Event type line - next data line will contain the data
+                            pass
+                        elif line == "":
+                            # Empty line marks end of event
+                            pass
+        except httpx.ConnectError as e:
+            logger.error(f"Failed to connect to SSE endpoint: {e}")
+        except Exception as e:
+            logger.error(f"SSE subscription error: {e}")
