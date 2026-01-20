@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 import httpx
-from qontinui_schemas.common import utc_now
+from qontinui_schemas import utc_now
 
 logger = logging.getLogger(__name__)
 
