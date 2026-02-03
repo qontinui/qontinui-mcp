@@ -218,6 +218,10 @@ TOOL_PERMISSIONS: dict[str, PermissionLevel] = {
     "get_dom_capture_html": PermissionLevel.READ_ONLY,
     "awas_check_support": PermissionLevel.READ_ONLY,
     "awas_list_actions": PermissionLevel.READ_ONLY,
+    # Visual context tools - generate AI-friendly visual context
+    "get_annotated_screenshot": PermissionLevel.READ_ONLY,
+    "get_visual_diff": PermissionLevel.READ_ONLY,
+    "get_interaction_heatmap": PermissionLevel.READ_ONLY,
     # EXECUTE tools - run workflows, tests, capture screenshots
     "run_workflow": PermissionLevel.EXECUTE,
     "execute_test": PermissionLevel.EXECUTE,

@@ -870,6 +870,88 @@ TOOLS = [
             "required": ["description"],
         },
     ),
+    # Visual Context for AI
+    types.Tool(
+        name="get_annotated_screenshot",
+        description="Get an annotated screenshot with element IDs and bounding boxes for AI consumption. "
+        "Elements are labeled with IDs (E001, E002, etc.) and color-coded by type (button=orange, "
+        "input=green, link=cyan, etc.). Useful for AI to understand current GUI state and reference "
+        "specific elements by ID.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "screenshot_base64": {
+                    "type": "string",
+                    "description": "Optional base64-encoded screenshot. If not provided, captures current screen.",
+                },
+                "auto_detect": {
+                    "type": "boolean",
+                    "description": "Automatically detect UI elements if not provided (default: true).",
+                    "default": True,
+                },
+                "include_legend": {
+                    "type": "boolean",
+                    "description": "Include a color legend in the output image (default: true).",
+                    "default": True,
+                },
+            },
+        },
+    ),
+    types.Tool(
+        name="get_visual_diff",
+        description="Get a visual diff highlighting changes between two screenshots. "
+        "Shows regions that appeared (green) or disappeared (red), with change statistics. "
+        "Useful for AI to understand what changed after an action.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "before_base64": {
+                    "type": "string",
+                    "description": "Base64-encoded screenshot before the change.",
+                },
+                "after_base64": {
+                    "type": "string",
+                    "description": "Base64-encoded screenshot after the change.",
+                },
+                "threshold": {
+                    "type": "number",
+                    "description": "Pixel difference threshold (0-255) for change detection (default: 30).",
+                    "default": 30.0,
+                },
+                "min_region_area": {
+                    "type": "integer",
+                    "description": "Minimum pixel area for a region to be reported (default: 100).",
+                    "default": 100,
+                },
+            },
+            "required": ["before_base64", "after_base64"],
+        },
+    ),
+    types.Tool(
+        name="get_interaction_heatmap",
+        description="Get an interaction heatmap showing clickable/interactive regions. "
+        "Warmer colors indicate higher interactivity potential. Useful for AI to identify "
+        "where actions can be taken on the current screen.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "screenshot_base64": {
+                    "type": "string",
+                    "description": "Optional base64-encoded screenshot. If not provided, captures current screen.",
+                },
+                "auto_detect": {
+                    "type": "boolean",
+                    "description": "Automatically detect UI elements if not provided (default: true).",
+                    "default": True,
+                },
+                "alpha": {
+                    "type": "number",
+                    "description": "Heatmap transparency (0-1, higher = more visible). Default: 0.6.",
+                    "default": 0.6,
+                },
+            },
+        },
+    ),
 ]
 
 
@@ -1514,6 +1596,67 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[types.TextCont
                 log_source_selection=arguments.get("log_source_selection"),
                 prompt_template=arguments.get("prompt_template"),
                 auto_include_contexts=arguments.get("auto_include_contexts"),
+            )
+            return [
+                types.TextContent(
+                    type="text", text=json.dumps(response.__dict__, indent=2)
+                )
+            ]
+
+        # Visual Context for AI
+        elif name == "get_annotated_screenshot":
+            screenshot_base64 = arguments.get("screenshot_base64")
+            auto_detect = arguments.get("auto_detect", True)
+            include_legend = arguments.get("include_legend", True)
+            response = await qontinui.get_annotated_screenshot(
+                screenshot_base64=screenshot_base64,
+                auto_detect=auto_detect,
+                include_legend=include_legend,
+            )
+            return [
+                types.TextContent(
+                    type="text", text=json.dumps(response.__dict__, indent=2)
+                )
+            ]
+
+        elif name == "get_visual_diff":
+            before_base64 = arguments.get("before_base64", "")
+            after_base64 = arguments.get("after_base64", "")
+            if not before_base64 or not after_base64:
+                return [
+                    types.TextContent(
+                        type="text",
+                        text=json.dumps(
+                            {
+                                "success": False,
+                                "error": "before_base64 and after_base64 are required",
+                            },
+                            indent=2,
+                        ),
+                    )
+                ]
+            threshold = arguments.get("threshold", 30.0)
+            min_region_area = arguments.get("min_region_area", 100)
+            response = await qontinui.get_visual_diff(
+                before_base64=before_base64,
+                after_base64=after_base64,
+                threshold=threshold,
+                min_region_area=min_region_area,
+            )
+            return [
+                types.TextContent(
+                    type="text", text=json.dumps(response.__dict__, indent=2)
+                )
+            ]
+
+        elif name == "get_interaction_heatmap":
+            screenshot_base64 = arguments.get("screenshot_base64")
+            auto_detect = arguments.get("auto_detect", True)
+            alpha = arguments.get("alpha", 0.6)
+            response = await qontinui.get_interaction_heatmap(
+                screenshot_base64=screenshot_base64,
+                auto_detect=auto_detect,
+                alpha=alpha,
             )
             return [
                 types.TextContent(

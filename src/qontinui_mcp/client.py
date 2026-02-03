@@ -1450,6 +1450,159 @@ class QontinuiClient:
         )
 
     # -------------------------------------------------------------------------
+    # Visual Context for AI
+    # -------------------------------------------------------------------------
+
+    async def get_annotated_screenshot(
+        self,
+        screenshot_base64: str | None = None,
+        auto_detect: bool = True,
+        include_legend: bool = True,
+    ) -> RunnerResponse:
+        """Get an annotated screenshot with element IDs and bounding boxes.
+
+        This generates a visual context snapshot for AI consumption, with:
+        - Element IDs (E001, E002, etc.) labeling detected UI elements
+        - Color-coded bounding boxes by element type
+        - Optional legend showing element type colors
+
+        Args:
+            screenshot_base64: Optional base64-encoded screenshot.
+                If not provided, captures current screen.
+            auto_detect: If True, automatically detect UI elements.
+            include_legend: If True, include color legend in output.
+
+        Returns:
+            RunnerResponse with:
+            - base64_png: Base64-encoded annotated image
+            - elements: List of detected elements with IDs and bounds
+            - detection_time_ms: Time taken for element detection
+            - annotation_time_ms: Time taken for annotation
+            - file_path: Path where image was saved
+
+        Example:
+            ```python
+            result = await client.get_annotated_screenshot()
+            if result.success:
+                elements = result.data["elements"]
+                print(f"Found {len(elements)} elements")
+                for elem in elements:
+                    print(f"  {elem['id']}: {elem['type']} at {elem['bounds']}")
+            ```
+        """
+        payload: dict[str, Any] = {
+            "auto_detect": auto_detect,
+            "include_legend": include_legend,
+        }
+        if screenshot_base64:
+            payload["screenshot_base64"] = screenshot_base64
+
+        return await self._request(
+            "POST",
+            "/visual-context/annotated-screenshot",
+            payload,
+            timeout=60.0,  # May take a while for detection
+        )
+
+    async def get_visual_diff(
+        self,
+        before_base64: str,
+        after_base64: str,
+        threshold: float = 30.0,
+        min_region_area: int = 100,
+    ) -> RunnerResponse:
+        """Get a visual diff highlighting changes between two screenshots.
+
+        This compares two screenshots and generates a visualization showing:
+        - Regions that appeared (highlighted in green)
+        - Regions that disappeared (highlighted in red)
+        - Change percentage and statistics
+
+        Args:
+            before_base64: Base64-encoded screenshot before the change.
+            after_base64: Base64-encoded screenshot after the change.
+            threshold: Pixel difference threshold (0-255) for change detection.
+            min_region_area: Minimum pixel area for a region to be reported.
+
+        Returns:
+            RunnerResponse with:
+            - base64_png: Base64-encoded diff image
+            - appeared_regions: List of new region bounding boxes
+            - disappeared_regions: List of removed region bounding boxes
+            - total_change_percentage: Percentage of image that changed
+            - file_path: Path where diff image was saved
+
+        Example:
+            ```python
+            result = await client.get_visual_diff(before_img, after_img)
+            if result.success:
+                change_pct = result.data["total_change_percentage"]
+                print(f"Image changed by {change_pct:.1f}%")
+                print(f"New regions: {len(result.data['appeared_regions'])}")
+            ```
+        """
+        return await self._request(
+            "POST",
+            "/visual-context/diff",
+            {
+                "before_base64": before_base64,
+                "after_base64": after_base64,
+                "threshold": threshold,
+                "min_region_area": min_region_area,
+            },
+            timeout=60.0,
+        )
+
+    async def get_interaction_heatmap(
+        self,
+        screenshot_base64: str | None = None,
+        auto_detect: bool = True,
+        alpha: float = 0.6,
+    ) -> RunnerResponse:
+        """Get an interaction heatmap showing clickable regions.
+
+        This generates a heatmap overlay showing where interactions
+        are likely possible, with warmer colors indicating higher
+        interactivity potential.
+
+        Args:
+            screenshot_base64: Optional base64-encoded screenshot.
+                If not provided, captures current screen.
+            auto_detect: If True, automatically detect UI elements.
+            alpha: Heatmap transparency (0-1, higher = more visible).
+
+        Returns:
+            RunnerResponse with:
+            - base64_png: Base64-encoded heatmap image
+            - clickable_regions: List of interactive region metadata
+            - computation_time_ms: Time taken to generate heatmap
+            - file_path: Path where heatmap was saved
+
+        Example:
+            ```python
+            result = await client.get_interaction_heatmap()
+            if result.success:
+                regions = result.data["clickable_regions"]
+                print(f"Found {len(regions)} clickable regions")
+                for r in regions:
+                    print(f"  {r['type']}: score={r['interactivity_score']:.2f}")
+            ```
+        """
+        payload: dict[str, Any] = {
+            "auto_detect": auto_detect,
+            "alpha": alpha,
+        }
+        if screenshot_base64:
+            payload["screenshot_base64"] = screenshot_base64
+
+        return await self._request(
+            "POST",
+            "/visual-context/heatmap",
+            payload,
+            timeout=60.0,
+        )
+
+    # -------------------------------------------------------------------------
     # Event Streaming
     # -------------------------------------------------------------------------
 
