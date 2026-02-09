@@ -458,6 +458,36 @@ class QontinuiClient:
 
         return result
 
+    async def execute_plan(
+        self,
+        plan_name: str,
+        plan_overview: str,
+        phases: list[dict[str, str]],
+        next_steps_sweep: bool = True,
+        timeout_seconds: float | None = None,
+    ) -> RunnerResponse:
+        """Execute a structured implementation plan.
+
+        Args:
+            plan_name: Name of the plan.
+            plan_overview: Overview of what the plan accomplishes.
+            phases: List of phase dicts with 'name' and 'prompt' keys.
+            next_steps_sweep: Run a sweep after all phases (default: True).
+            timeout_seconds: Optional timeout per AI session.
+
+        Returns:
+            RunnerResponse with plan execution result.
+        """
+        payload: dict[str, Any] = {
+            "plan_name": plan_name,
+            "plan_overview": plan_overview,
+            "phases": phases,
+            "next_steps_sweep": next_steps_sweep,
+        }
+        if timeout_seconds is not None:
+            payload["timeout_seconds"] = timeout_seconds
+        return await self._request("POST", "/execute-plan", payload, timeout=30.0)
+
     async def stop_execution(self) -> RunnerResponse:
         """Stop the current workflow execution."""
         return await self._request("POST", "/stop-execution")

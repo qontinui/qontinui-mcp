@@ -231,6 +231,7 @@ TOOL_PERMISSIONS: dict[str, PermissionLevel] = {
     "awas_execute": PermissionLevel.EXECUTE,
     "execute_python": PermissionLevel.EXECUTE,
     "spawn_sub_agent": PermissionLevel.EXECUTE,
+    "execute_plan": PermissionLevel.EXECUTE,
     # MODIFY tools - create, update, delete resources
     "load_config": PermissionLevel.MODIFY,
     "ensure_config_loaded": PermissionLevel.MODIFY,

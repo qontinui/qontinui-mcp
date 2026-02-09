@@ -870,6 +870,52 @@ TOOLS = [
             "required": ["description"],
         },
     ),
+    # Plan Execution
+    types.Tool(
+        name="execute_plan",
+        description="Execute a structured implementation plan with sequential AI phases. Each phase runs as a separate AI session with full context from prior phases.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "plan_name": {
+                    "type": "string",
+                    "description": "Name of the plan",
+                },
+                "plan_overview": {
+                    "type": "string",
+                    "description": "Overview of what the plan accomplishes",
+                },
+                "phases": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "name": {
+                                "type": "string",
+                                "description": "Phase name",
+                            },
+                            "prompt": {
+                                "type": "string",
+                                "description": "Instructions for this phase",
+                            },
+                        },
+                        "required": ["name", "prompt"],
+                    },
+                    "minItems": 1,
+                },
+                "next_steps_sweep": {
+                    "type": "boolean",
+                    "description": "Run a sweep after all phases (default: true)",
+                    "default": True,
+                },
+                "timeout_seconds": {
+                    "type": "number",
+                    "description": "Optional timeout per AI session",
+                },
+            },
+            "required": ["plan_name", "plan_overview", "phases"],
+        },
+    ),
     # Visual Context for AI
     types.Tool(
         name="get_annotated_screenshot",
@@ -955,7 +1001,7 @@ TOOLS = [
 ]
 
 
-@server.list_tools()  # type: ignore[untyped-decorator,no-untyped-call]
+@server.list_tools()  # type: ignore[misc,no-untyped-call]
 async def list_tools() -> list[types.Tool]:
     """List all available tools with caching.
 
@@ -965,7 +1011,7 @@ async def list_tools() -> list[types.Tool]:
     return await get_tools_with_cache()
 
 
-@server.call_tool()  # type: ignore[untyped-decorator]
+@server.call_tool()  # type: ignore[misc]
 async def call_tool(name: str, arguments: dict[str, Any]) -> list[types.TextContent]:
     """Handle tool calls by forwarding to the runner.
 
@@ -1603,6 +1649,36 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[types.TextCont
                 )
             ]
 
+        elif name == "execute_plan":
+            plan_name = arguments.get("plan_name", "")
+            plan_overview = arguments.get("plan_overview", "")
+            phases = arguments.get("phases", [])
+            if not plan_name or not plan_overview or not phases:
+                return [
+                    types.TextContent(
+                        type="text",
+                        text=json.dumps(
+                            {
+                                "success": False,
+                                "error": "plan_name, plan_overview, and phases are required",
+                            },
+                            indent=2,
+                        ),
+                    )
+                ]
+            response = await qontinui.execute_plan(
+                plan_name=plan_name,
+                plan_overview=plan_overview,
+                phases=phases,
+                next_steps_sweep=arguments.get("next_steps_sweep", True),
+                timeout_seconds=arguments.get("timeout_seconds"),
+            )
+            return [
+                types.TextContent(
+                    type="text", text=json.dumps(response.__dict__, indent=2)
+                )
+            ]
+
         # Visual Context for AI
         elif name == "get_annotated_screenshot":
             screenshot_base64 = arguments.get("screenshot_base64")
@@ -1699,7 +1775,7 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[types.TextCont
 # -----------------------------------------------------------------------------
 
 
-@server.list_resources()  # type: ignore[untyped-decorator,no-untyped-call]
+@server.list_resources()  # type: ignore[misc,no-untyped-call]
 async def list_resources() -> list[types.Resource]:
     """List available resources.
 
@@ -1818,7 +1894,7 @@ async def list_resources() -> list[types.Resource]:
     return resources
 
 
-@server.read_resource()  # type: ignore[untyped-decorator,no-untyped-call]
+@server.read_resource()  # type: ignore[misc,no-untyped-call]
 async def read_resource(uri: str) -> str:
     """Read a resource by URI.
 
@@ -2096,13 +2172,13 @@ PROMPTS = [
 ]
 
 
-@server.list_prompts()  # type: ignore[untyped-decorator,no-untyped-call]
+@server.list_prompts()  # type: ignore[misc,no-untyped-call]
 async def list_prompts() -> list[types.Prompt]:
     """List available prompts."""
     return PROMPTS
 
 
-@server.get_prompt()  # type: ignore[untyped-decorator,no-untyped-call]
+@server.get_prompt()  # type: ignore[misc,no-untyped-call]
 async def get_prompt(
     name: str, arguments: dict[str, str] | None
 ) -> types.GetPromptResult:
