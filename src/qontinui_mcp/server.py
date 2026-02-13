@@ -1001,7 +1001,7 @@ TOOLS = [
 ]
 
 
-@server.list_tools()  # type: ignore[misc,no-untyped-call]
+@server.list_tools()  # type: ignore[untyped-decorator,no-untyped-call]
 async def list_tools() -> list[types.Tool]:
     """List all available tools with caching.
 
@@ -1011,7 +1011,7 @@ async def list_tools() -> list[types.Tool]:
     return await get_tools_with_cache()
 
 
-@server.call_tool()  # type: ignore[misc]
+@server.call_tool()  # type: ignore[untyped-decorator]
 async def call_tool(name: str, arguments: dict[str, Any]) -> list[types.TextContent]:
     """Handle tool calls by forwarding to the runner.
 
@@ -1775,7 +1775,7 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[types.TextCont
 # -----------------------------------------------------------------------------
 
 
-@server.list_resources()  # type: ignore[misc,no-untyped-call]
+@server.list_resources()  # type: ignore[untyped-decorator,no-untyped-call]
 async def list_resources() -> list[types.Resource]:
     """List available resources.
 
@@ -1894,7 +1894,7 @@ async def list_resources() -> list[types.Resource]:
     return resources
 
 
-@server.read_resource()  # type: ignore[misc,no-untyped-call]
+@server.read_resource()  # type: ignore[untyped-decorator,no-untyped-call]
 async def read_resource(uri: str) -> str:
     """Read a resource by URI.
 
@@ -2172,13 +2172,13 @@ PROMPTS = [
 ]
 
 
-@server.list_prompts()  # type: ignore[misc,no-untyped-call]
+@server.list_prompts()  # type: ignore[untyped-decorator,no-untyped-call]
 async def list_prompts() -> list[types.Prompt]:
     """List available prompts."""
     return PROMPTS
 
 
-@server.get_prompt()  # type: ignore[misc,no-untyped-call]
+@server.get_prompt()  # type: ignore[untyped-decorator,no-untyped-call]
 async def get_prompt(
     name: str, arguments: dict[str, str] | None
 ) -> types.GetPromptResult:
