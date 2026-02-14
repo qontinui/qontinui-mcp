@@ -1633,6 +1633,61 @@ class QontinuiClient:
         )
 
     # -------------------------------------------------------------------------
+    # State Machine Operations
+    # -------------------------------------------------------------------------
+
+    async def load_state_machine(self, config: dict[str, Any]) -> RunnerResponse:
+        """Load a UI Bridge state machine configuration.
+
+        Args:
+            config: The state machine configuration JSON.
+        """
+        return await self._request(
+            "POST",
+            "/state-machine/load",
+            {"config": config},
+            timeout=30.0,
+        )
+
+    async def get_state_machine_status(self) -> RunnerResponse:
+        """Get status and statistics of the loaded state machine."""
+        return await self._request("GET", "/state-machine/status")
+
+    async def get_sm_active_states(self) -> RunnerResponse:
+        """Get currently active states in the loaded state machine."""
+        return await self._request("GET", "/state-machine/active-states")
+
+    async def execute_state_transition(self, transition_id: str) -> RunnerResponse:
+        """Execute a specific transition by ID.
+
+        Args:
+            transition_id: The ID of the transition to execute.
+        """
+        return await self._request(
+            "POST",
+            "/state-machine/execute-transition",
+            {"transitionId": transition_id},
+            timeout=30.0,
+        )
+
+    async def navigate_to_states(self, target_states: list[str]) -> RunnerResponse:
+        """Navigate to target states using pathfinding.
+
+        Args:
+            target_states: List of target state IDs to navigate to.
+        """
+        return await self._request(
+            "POST",
+            "/state-machine/navigate",
+            {"targetStates": target_states},
+            timeout=60.0,
+        )
+
+    async def get_sm_available_transitions(self) -> RunnerResponse:
+        """Get transitions available from the current active states."""
+        return await self._request("GET", "/state-machine/available-transitions")
+
+    # -------------------------------------------------------------------------
     # Event Streaming
     # -------------------------------------------------------------------------
 

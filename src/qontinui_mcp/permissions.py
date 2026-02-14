@@ -238,6 +238,13 @@ TOOL_PERMISSIONS: dict[str, PermissionLevel] = {
     "create_test": PermissionLevel.MODIFY,
     "update_test": PermissionLevel.MODIFY,
     "delete_test": PermissionLevel.MODIFY,
+    # State Machine tools
+    "get_state_machine_status": PermissionLevel.READ_ONLY,
+    "get_active_states": PermissionLevel.READ_ONLY,
+    "get_available_transitions": PermissionLevel.READ_ONLY,
+    "load_state_machine": PermissionLevel.MODIFY,
+    "execute_state_transition": PermissionLevel.EXECUTE,
+    "navigate_to_states": PermissionLevel.EXECUTE,
     # DANGEROUS tools - can disrupt execution
     "stop_execution": PermissionLevel.DANGEROUS,
     "restart_runner": PermissionLevel.DANGEROUS,

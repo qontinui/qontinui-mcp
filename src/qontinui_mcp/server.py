@@ -998,6 +998,85 @@ TOOLS = [
             },
         },
     ),
+    # State Machine tools
+    types.Tool(
+        name="load_state_machine",
+        description="Load a UI Bridge state machine configuration into the runner. "
+        "The config should be the JSON export from the web UI's state machine builder, "
+        "compatible with UIBridgeRuntime.from_dict().",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "config": {
+                    "type": "object",
+                    "description": "The state machine configuration JSON (exported from web UI).",
+                },
+            },
+            "required": ["config"],
+        },
+    ),
+    types.Tool(
+        name="get_state_machine_status",
+        description="Get the status and statistics of the currently loaded state machine. "
+        "Returns whether a state machine is loaded, and if so, counts of states, "
+        "transitions, active states, and complexity metrics.",
+        inputSchema={
+            "type": "object",
+            "properties": {},
+        },
+    ),
+    types.Tool(
+        name="get_active_states",
+        description="Get the currently active states in the loaded state machine. "
+        "Active states are determined by querying the UI Bridge for visible elements "
+        "and mapping them to registered states.",
+        inputSchema={
+            "type": "object",
+            "properties": {},
+        },
+    ),
+    types.Tool(
+        name="execute_state_transition",
+        description="Execute a specific transition by ID in the loaded state machine. "
+        "This runs the transition's action sequence (clicks, typing, etc.) "
+        "and updates the state machine's active states.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "transition_id": {
+                    "type": "string",
+                    "description": "The ID of the transition to execute.",
+                },
+            },
+            "required": ["transition_id"],
+        },
+    ),
+    types.Tool(
+        name="navigate_to_states",
+        description="Navigate to target states using pathfinding. "
+        "The state machine will find the optimal path from current active states "
+        "to the target states and execute each transition along the way.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "target_states": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "List of target state IDs to navigate to.",
+                },
+            },
+            "required": ["target_states"],
+        },
+    ),
+    types.Tool(
+        name="get_available_transitions",
+        description="Get all transitions that are currently available from the active states. "
+        "Returns the list of transitions that can be executed right now.",
+        inputSchema={
+            "type": "object",
+            "properties": {},
+        },
+    ),
 ]
 
 
@@ -1734,6 +1813,88 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[types.TextCont
                 auto_detect=auto_detect,
                 alpha=alpha,
             )
+            return [
+                types.TextContent(
+                    type="text", text=json.dumps(response.__dict__, indent=2)
+                )
+            ]
+
+        # State Machine tools
+        elif name == "load_state_machine":
+            config = arguments.get("config")
+            if not config:
+                return [
+                    types.TextContent(
+                        type="text",
+                        text=json.dumps(
+                            {"success": False, "error": "config is required"},
+                            indent=2,
+                        ),
+                    )
+                ]
+            response = await qontinui.load_state_machine(config)
+            return [
+                types.TextContent(
+                    type="text", text=json.dumps(response.__dict__, indent=2)
+                )
+            ]
+
+        elif name == "get_state_machine_status":
+            response = await qontinui.get_state_machine_status()
+            return [
+                types.TextContent(
+                    type="text", text=json.dumps(response.__dict__, indent=2)
+                )
+            ]
+
+        elif name == "get_active_states":
+            response = await qontinui.get_sm_active_states()
+            return [
+                types.TextContent(
+                    type="text", text=json.dumps(response.__dict__, indent=2)
+                )
+            ]
+
+        elif name == "execute_state_transition":
+            transition_id = arguments.get("transition_id", "")
+            if not transition_id:
+                return [
+                    types.TextContent(
+                        type="text",
+                        text=json.dumps(
+                            {"success": False, "error": "transition_id is required"},
+                            indent=2,
+                        ),
+                    )
+                ]
+            response = await qontinui.execute_state_transition(transition_id)
+            return [
+                types.TextContent(
+                    type="text", text=json.dumps(response.__dict__, indent=2)
+                )
+            ]
+
+        elif name == "navigate_to_states":
+            target_states = arguments.get("target_states", [])
+            if not target_states:
+                return [
+                    types.TextContent(
+                        type="text",
+                        text=json.dumps(
+                            {"success": False, "error": "target_states is required"},
+                            indent=2,
+                        ),
+                    )
+                ]
+            response = await qontinui.navigate_to_states(target_states)
+            return [
+                types.TextContent(
+                    type="text", text=json.dumps(response.__dict__, indent=2)
+                )
+            ]
+
+        elif name == "get_available_transitions":
+            response = await qontinui.get_sm_available_transitions()
             return [
                 types.TextContent(
                     type="text", text=json.dumps(response.__dict__, indent=2)
