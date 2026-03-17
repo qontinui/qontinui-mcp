@@ -245,6 +245,9 @@ TOOL_PERMISSIONS: dict[str, PermissionLevel] = {
     "load_state_machine": PermissionLevel.MODIFY,
     "execute_state_transition": PermissionLevel.EXECUTE,
     "navigate_to_states": PermissionLevel.EXECUTE,
+    # GUI Config Pipeline tools
+    "capture_gui_elements": PermissionLevel.EXECUTE,
+    "build_gui_config": PermissionLevel.MODIFY,
     # DANGEROUS tools - can disrupt execution
     "stop_execution": PermissionLevel.DANGEROUS,
     "restart_runner": PermissionLevel.DANGEROUS,

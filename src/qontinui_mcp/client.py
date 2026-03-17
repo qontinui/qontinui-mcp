@@ -1688,6 +1688,61 @@ class QontinuiClient:
         return await self._request("GET", "/state-machine/available-transitions")
 
     # -------------------------------------------------------------------------
+    # GUI Config Pipeline (Element-to-Image + Config Bridge)
+    # -------------------------------------------------------------------------
+
+    async def capture_gui_elements(
+        self,
+        window_offset_x: int = 0,
+        window_offset_y: int = 0,
+        scale_factor: float = 1.0,
+        category_filter: list[str] | None = None,
+        min_element_size: int = 4,
+        padding: int = 0,
+    ) -> RunnerResponse:
+        """Capture element images from the current UI page.
+
+        Combines UI Bridge snapshot + screenshot capture + element cropping
+        into a single server-side operation.
+        """
+        payload: dict[str, Any] = {
+            "window_offset_x": window_offset_x,
+            "window_offset_y": window_offset_y,
+            "scale_factor": scale_factor,
+            "min_element_size": min_element_size,
+            "padding": padding,
+        }
+        if category_filter:
+            payload["category_filter"] = category_filter
+        return await self._request(
+            "POST", "/gui-config/capture-elements", payload, timeout=30.0
+        )
+
+    async def build_gui_config(
+        self,
+        name: str,
+        states: list[dict[str, Any]],
+        transitions: list[dict[str, Any]],
+        element_images: dict[str, Any],
+        description: str = "",
+        similarity: float = 0.85,
+    ) -> RunnerResponse:
+        """Build a QontinuiConfig from element images and state/transition definitions."""
+        return await self._request(
+            "POST",
+            "/gui-config/build",
+            {
+                "name": name,
+                "states": states,
+                "transitions": transitions,
+                "element_images": element_images,
+                "description": description,
+                "similarity": similarity,
+            },
+            timeout=30.0,
+        )
+
+    # -------------------------------------------------------------------------
     # Event Streaming
     # -------------------------------------------------------------------------
 
