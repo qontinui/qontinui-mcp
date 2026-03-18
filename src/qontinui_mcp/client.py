@@ -1718,6 +1718,30 @@ class QontinuiClient:
             "POST", "/gui-config/capture-elements", payload, timeout=30.0
         )
 
+    async def capture_multi_state_gui_config(
+        self,
+        name: str,
+        interactions: list[dict[str, Any]],
+        min_element_size: int = 4,
+        description: str = "",
+        similarity: float = 0.85,
+    ) -> RunnerResponse:
+        """Capture a complete multi-state GUI config in one call.
+
+        Walks through interactions, captures screenshots + snapshots at each step,
+        diffs element sets, crops images, and builds a complete QontinuiConfig.
+        """
+        payload: dict[str, Any] = {
+            "name": name,
+            "interactions": interactions,
+            "min_element_size": min_element_size,
+            "description": description,
+            "similarity": similarity,
+        }
+        return await self._request(
+            "POST", "/gui-config/capture-multi-state", payload, timeout=120.0
+        )
+
     async def build_gui_config(
         self,
         name: str,

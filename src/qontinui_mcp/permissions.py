@@ -247,6 +247,7 @@ TOOL_PERMISSIONS: dict[str, PermissionLevel] = {
     "navigate_to_states": PermissionLevel.EXECUTE,
     # GUI Config Pipeline tools
     "capture_gui_elements": PermissionLevel.EXECUTE,
+    "capture_multi_state_gui_config": PermissionLevel.EXECUTE,
     "build_gui_config": PermissionLevel.MODIFY,
     # DANGEROUS tools - can disrupt execution
     "stop_execution": PermissionLevel.DANGEROUS,

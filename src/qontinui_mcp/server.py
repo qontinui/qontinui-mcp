@@ -1122,6 +1122,68 @@ TOOLS = [
         },
     ),
     types.Tool(
+        name="capture_multi_state_gui_config",
+        description="Capture a complete multi-state GUI automation config in one call. "
+        "Walks through a sequence of interactions (click, scroll), capturing "
+        "screenshots and element snapshots at each step. Automatically diffs "
+        "element sets to assign only NEW elements to each state, crops images, "
+        "builds transitions, and produces a complete QontinuiConfig. "
+        "Much simpler than calling capture_gui_elements + build_gui_config manually.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "description": "Config name.",
+                },
+                "interactions": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "action_type": {
+                                "type": "string",
+                                "description": "Action: 'initial' (no action, just capture), "
+                                "'click', or 'scroll'.",
+                                "enum": ["initial", "click", "scroll"],
+                            },
+                            "target": {
+                                "type": "string",
+                                "description": "Element ID to act on (not needed for 'initial').",
+                            },
+                            "state_name": {
+                                "type": "string",
+                                "description": "Human-readable name for this state.",
+                            },
+                            "wait_seconds": {
+                                "type": "number",
+                                "description": "Seconds to wait after action before capture. Default: 1.0.",
+                                "default": 1.0,
+                            },
+                        },
+                        "required": ["action_type", "state_name"],
+                    },
+                    "description": "Ordered list of interactions. First should be 'initial'.",
+                },
+                "min_element_size": {
+                    "type": "integer",
+                    "description": "Minimum element width/height in pixels. Default: 4.",
+                    "default": 4,
+                },
+                "description": {
+                    "type": "string",
+                    "description": "Optional config description.",
+                },
+                "similarity": {
+                    "type": "number",
+                    "description": "Default similarity threshold for pattern matching. Default: 0.85.",
+                    "default": 0.85,
+                },
+            },
+            "required": ["name", "interactions"],
+        },
+    ),
+    types.Tool(
         name="build_gui_config",
         description="Build a visual GUI automation config (QontinuiConfig) from captured "
         "element images and state/transition definitions. The output is a complete "
@@ -2032,6 +2094,9 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[types.TextCont
         elif name == "capture_gui_elements":
             return await _handle_capture_gui_elements(qontinui, arguments)
 
+        elif name == "capture_multi_state_gui_config":
+            return await _handle_capture_multi_state_gui_config(qontinui, arguments)
+
         elif name == "build_gui_config":
             return await _handle_build_gui_config(qontinui, arguments)
 
@@ -2586,6 +2651,34 @@ async def _handle_capture_gui_elements(
         category_filter=arguments.get("category_filter"),
         min_element_size=min_element_size,
         padding=padding,
+    )
+    return [
+        types.TextContent(type="text", text=json.dumps(response.__dict__, indent=2))
+    ]
+
+
+async def _handle_capture_multi_state_gui_config(
+    qontinui: QontinuiClient, arguments: dict[str, Any]
+) -> list[types.TextContent]:
+    """Capture a complete multi-state GUI config in one call."""
+    name = arguments.get("name", "Untitled Multi-State Config")
+    interactions = arguments.get("interactions", [])
+    if not interactions:
+        return [
+            types.TextContent(
+                type="text",
+                text=json.dumps(
+                    {"success": False, "error": "interactions list is required"}
+                ),
+            )
+        ]
+
+    response = await qontinui.capture_multi_state_gui_config(
+        name=name,
+        interactions=interactions,
+        min_element_size=int(arguments.get("min_element_size", 4)),
+        description=arguments.get("description", ""),
+        similarity=float(arguments.get("similarity", 0.85)),
     )
     return [
         types.TextContent(type="text", text=json.dumps(response.__dict__, indent=2))
