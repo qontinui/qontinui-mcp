@@ -136,7 +136,7 @@ def _save_automation_results(
     latest_screenshots_dir.mkdir(exist_ok=True)
 
     # Capture log snapshots from .dev-logs
-    log_files = ["backend.log", "frontend.log", "qontinui-api.log", "runner.log"]
+    log_files = ["backend.log", "frontend.log", "runner.log"]
     for log_file in log_files:
         src_log = DEV_LOGS_DIR / log_file
         if src_log.exists():
@@ -191,11 +191,6 @@ def _save_automation_results(
             "frontend": (
                 str(latest_logs_dir / "frontend.log")
                 if (latest_logs_dir / "frontend.log").exists()
-                else None
-            ),
-            "api": (
-                str(latest_logs_dir / "qontinui-api.log")
-                if (latest_logs_dir / "qontinui-api.log").exists()
                 else None
             ),
             "runner": (
