@@ -252,6 +252,17 @@ TOOL_PERMISSIONS: dict[str, PermissionLevel] = {
     # DANGEROUS tools - can disrupt execution
     "stop_execution": PermissionLevel.DANGEROUS,
     "restart_runner": PermissionLevel.DANGEROUS,
+    # Observation memory tools
+    "mem_search": PermissionLevel.READ_ONLY,
+    "mem_get": PermissionLevel.READ_ONLY,
+    "mem_context": PermissionLevel.READ_ONLY,
+    "mem_stats": PermissionLevel.READ_ONLY,
+    "mem_save": PermissionLevel.MODIFY,
+    "mem_update": PermissionLevel.MODIFY,
+    "mem_delete": PermissionLevel.MODIFY,
+    "mem_by_task_run": PermissionLevel.READ_ONLY,
+    "mem_export": PermissionLevel.READ_ONLY,
+    "mem_cleanup": PermissionLevel.MODIFY,
 }
 
 

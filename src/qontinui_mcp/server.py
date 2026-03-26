@@ -13,6 +13,7 @@ import logging
 import time
 from dataclasses import dataclass
 from typing import Any
+from urllib.parse import quote
 
 from mcp import types
 from mcp.server import Server
@@ -1266,6 +1267,232 @@ TOOLS = [
             "required": ["name", "states", "transitions", "element_images"],
         },
     ),
+    # -------------------------------------------------------------------------
+    # Observation Memory Tools (Engram-inspired persistent cross-session memory)
+    # -------------------------------------------------------------------------
+    types.Tool(
+        name="mem_save",
+        description="Save a persistent observation (decision, architecture, bugfix, pattern, learning, discovery). "
+        "Supports topic_key for evolving knowledge (upserts existing observation with same key). "
+        "Content within <private>...</private> tags is automatically redacted.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "title": {
+                    "type": "string",
+                    "description": "Short title for the observation.",
+                },
+                "content": {
+                    "type": "string",
+                    "description": "Full observation content (markdown supported).",
+                },
+                "observation_type": {
+                    "type": "string",
+                    "enum": [
+                        "decision",
+                        "architecture",
+                        "bugfix",
+                        "pattern",
+                        "learning",
+                        "discovery",
+                    ],
+                    "description": "Type classification for the observation.",
+                },
+                "topic_key": {
+                    "type": "string",
+                    "description": "Optional stable key for upsert semantics (e.g. 'architecture/auth-model'). "
+                    "Saving with an existing topic_key updates the observation.",
+                },
+                "scope": {
+                    "type": "string",
+                    "enum": ["project", "personal", "global"],
+                    "description": "Scope of the observation. Default: project.",
+                    "default": "project",
+                },
+                "project_id": {
+                    "type": "string",
+                    "description": "Project ID for scoping. Optional.",
+                },
+                "workflow_id": {
+                    "type": "string",
+                    "description": "Related workflow ID. Optional.",
+                },
+                "task_run_id": {
+                    "type": "string",
+                    "description": "Related task run ID. Optional.",
+                },
+            },
+            "required": ["title", "content", "observation_type"],
+        },
+    ),
+    types.Tool(
+        name="mem_search",
+        description="Full-text search over persistent observations. Returns 300-char previews "
+        "with relevance ranking. Use mem_get for full content.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": "Search query (natural language, supports stemming).",
+                },
+                "project_id": {
+                    "type": "string",
+                    "description": "Optional: scope search to a project.",
+                },
+                "max_results": {
+                    "type": "integer",
+                    "description": "Maximum results. Default: 20.",
+                    "default": 20,
+                },
+            },
+            "required": ["query"],
+        },
+    ),
+    types.Tool(
+        name="mem_get",
+        description="Get the full content of an observation by ID. Use after mem_search "
+        "to retrieve complete content (progressive disclosure).",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "integer",
+                    "description": "Observation ID.",
+                },
+            },
+            "required": ["id"],
+        },
+    ),
+    types.Tool(
+        name="mem_context",
+        description="Get relevant observations for a project. Returns recent observations "
+        "scoped to the project plus any global observations.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "project_id": {
+                    "type": "string",
+                    "description": "Project ID to get context for.",
+                },
+                "observation_type": {
+                    "type": "string",
+                    "enum": [
+                        "decision",
+                        "architecture",
+                        "bugfix",
+                        "pattern",
+                        "learning",
+                        "discovery",
+                    ],
+                    "description": "Optional: filter by observation type.",
+                },
+                "max_results": {
+                    "type": "integer",
+                    "description": "Maximum results. Default: 20.",
+                    "default": 20,
+                },
+            },
+            "required": ["project_id"],
+        },
+    ),
+    types.Tool(
+        name="mem_delete",
+        description="Soft-delete an observation by ID.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "integer",
+                    "description": "Observation ID to delete.",
+                },
+            },
+            "required": ["id"],
+        },
+    ),
+    types.Tool(
+        name="mem_stats",
+        description="Get observation statistics grouped by type.",
+        inputSchema={
+            "type": "object",
+            "properties": {},
+        },
+    ),
+    types.Tool(
+        name="mem_update",
+        description="Update an existing observation's title, content, or type.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "integer",
+                    "description": "Observation ID to update.",
+                },
+                "title": {
+                    "type": "string",
+                    "description": "New title (optional).",
+                },
+                "content": {
+                    "type": "string",
+                    "description": "New content (optional).",
+                },
+                "observation_type": {
+                    "type": "string",
+                    "enum": [
+                        "decision",
+                        "architecture",
+                        "bugfix",
+                        "pattern",
+                        "learning",
+                        "discovery",
+                    ],
+                    "description": "New type classification (optional).",
+                },
+            },
+            "required": ["id"],
+        },
+    ),
+    types.Tool(
+        name="mem_by_task_run",
+        description="Get all observations linked to a specific task run.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "task_run_id": {
+                    "type": "string",
+                    "description": "Task run ID to query observations for.",
+                },
+            },
+            "required": ["task_run_id"],
+        },
+    ),
+    types.Tool(
+        name="mem_export",
+        description="Export all observations as JSON for backup or sharing.",
+        inputSchema={
+            "type": "object",
+            "properties": {},
+        },
+    ),
+    types.Tool(
+        name="mem_cleanup",
+        description="Run retention policy to archive old, low-value observations.",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "retention_days": {
+                    "type": "integer",
+                    "description": "Days to retain. Default: 90.",
+                    "default": 90,
+                },
+                "max_revision_count": {
+                    "type": "integer",
+                    "description": "Max revision count for cleanup candidates. Default: 1.",
+                    "default": 1,
+                },
+            },
+        },
+    ),
 ]
 
 
@@ -2099,6 +2326,120 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[types.TextCont
 
         elif name == "build_gui_config":
             return await _handle_build_gui_config(qontinui, arguments)
+
+        # ----- Observation Memory Tools -----
+
+        elif name == "mem_save":
+            payload: dict[str, Any] = {
+                "title": arguments["title"],
+                "content": arguments["content"],
+                "observationType": arguments["observation_type"],
+                "scope": arguments.get("scope", "project"),
+            }
+            if arguments.get("topic_key"):
+                payload["topicKey"] = arguments["topic_key"]
+            if arguments.get("project_id"):
+                payload["projectId"] = arguments["project_id"]
+            if arguments.get("workflow_id"):
+                payload["workflowId"] = arguments["workflow_id"]
+            if arguments.get("task_run_id"):
+                payload["taskRunId"] = arguments["task_run_id"]
+            response = await qontinui._request("POST", "/observations", json_data=payload)
+            return [
+                types.TextContent(
+                    type="text", text=json.dumps(response.__dict__, indent=2)
+                )
+            ]
+
+        elif name == "mem_search":
+            params = f"?q={quote(arguments['query'])}&max_results={arguments.get('max_results', 20)}"
+            if arguments.get("project_id"):
+                params += f"&project_id={quote(arguments['project_id'])}"
+            response = await qontinui._request("GET", f"/observations/search{params}")
+            return [
+                types.TextContent(
+                    type="text", text=json.dumps(response.__dict__, indent=2)
+                )
+            ]
+
+        elif name == "mem_get":
+            obs_id = arguments["id"]
+            response = await qontinui._request("GET", f"/observations/{obs_id}")
+            return [
+                types.TextContent(
+                    type="text", text=json.dumps(response.__dict__, indent=2)
+                )
+            ]
+
+        elif name == "mem_context":
+            params = f"?project_id={quote(arguments['project_id'])}&max_results={arguments.get('max_results', 20)}"
+            if arguments.get("observation_type"):
+                params += f"&observation_type={quote(arguments['observation_type'])}"
+            response = await qontinui._request("GET", f"/observations/context{params}")
+            return [
+                types.TextContent(
+                    type="text", text=json.dumps(response.__dict__, indent=2)
+                )
+            ]
+
+        elif name == "mem_delete":
+            obs_id = arguments["id"]
+            response = await qontinui._request("DELETE", f"/observations/{obs_id}")
+            return [
+                types.TextContent(
+                    type="text", text=json.dumps(response.__dict__, indent=2)
+                )
+            ]
+
+        elif name == "mem_stats":
+            response = await qontinui._request("GET", "/observations/stats")
+            return [
+                types.TextContent(
+                    type="text", text=json.dumps(response.__dict__, indent=2)
+                )
+            ]
+
+        elif name == "mem_update":
+            obs_id = arguments["id"]
+            payload: dict[str, Any] = {}
+            if arguments.get("title"):
+                payload["title"] = arguments["title"]
+            if arguments.get("content"):
+                payload["content"] = arguments["content"]
+            if arguments.get("observation_type"):
+                payload["observationType"] = arguments["observation_type"]
+            response = await qontinui._request("PUT", f"/observations/{obs_id}", json_data=payload)
+            return [
+                types.TextContent(
+                    type="text", text=json.dumps(response.__dict__, indent=2)
+                )
+            ]
+
+        elif name == "mem_by_task_run":
+            task_run_id = quote(arguments["task_run_id"])
+            response = await qontinui._request("GET", f"/observations/by-task-run/{task_run_id}")
+            return [
+                types.TextContent(
+                    type="text", text=json.dumps(response.__dict__, indent=2)
+                )
+            ]
+
+        elif name == "mem_export":
+            response = await qontinui._request("GET", "/observations/export")
+            return [
+                types.TextContent(
+                    type="text", text=json.dumps(response.__dict__, indent=2)
+                )
+            ]
+
+        elif name == "mem_cleanup":
+            params = f"?retention_days={arguments.get('retention_days', 90)}&max_revision_count={arguments.get('max_revision_count', 1)}"
+            response = await qontinui._request("POST", f"/observations/cleanup{params}")
+            return [
+                types.TextContent(
+                    type="text", text=json.dumps(response.__dict__, indent=2)
+                )
+            ]
 
         else:
             return [
