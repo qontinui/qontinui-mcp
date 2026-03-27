@@ -404,22 +404,6 @@ files = [
 ]
 
 [[package]]
-name = "isort"
-version = "7.0.0"
-description = "A Python utility / library to sort Python imports."
-optional = false
-python-versions = ">=3.10.0"
-groups = ["dev"]
-files = [
-    {file = "isort-7.0.0-py3-none-any.whl", hash = "sha256:1bcabac8bc3c36c7fb7b98a76c8abb18e0f841a3ba81decac7691008592499c1"},
-    {file = "isort-7.0.0.tar.gz", hash = "sha256:5513527951aadb3ac4292a41a16cbc50dd1642432f5e8c20057d414bdafb4187"},
-]
-
-[package.extras]
-colors = ["colorama"]
-plugins = ["setuptools"]
-
-[[package]]
 name = "jsonschema"
 version = "4.26.0"
 description = "An implementation of JSON Schema validation for Python"
@@ -1363,4 +1347,4 @@ standard = ["colorama (>=0.4) ; sys_platform == \"win32\"", "httptools (>=0.6.3)
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.12"
-content-hash = "b45e071d67f799fd2792f55d7dbaf6779df75f9eebf5842722d81e2b2b231ef3"
+content-hash = "68c5409e2dba36d952462c6ed0f2bf9d3d93feae5b8484fe84bf130396d2f469"
