@@ -2344,7 +2344,9 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[types.TextCont
                 payload["workflowId"] = arguments["workflow_id"]
             if arguments.get("task_run_id"):
                 payload["taskRunId"] = arguments["task_run_id"]
-            response = await qontinui._request("POST", "/observations", json_data=payload)
+            response = await qontinui._request(
+                "POST", "/observations", json_data=payload
+            )
             return [
                 types.TextContent(
                     type="text", text=json.dumps(response.__dict__, indent=2)
@@ -2408,7 +2410,9 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[types.TextCont
                 payload["content"] = arguments["content"]
             if arguments.get("observation_type"):
                 payload["observationType"] = arguments["observation_type"]
-            response = await qontinui._request("PUT", f"/observations/{obs_id}", json_data=payload)
+            response = await qontinui._request(
+                "PUT", f"/observations/{obs_id}", json_data=payload
+            )
             return [
                 types.TextContent(
                     type="text", text=json.dumps(response.__dict__, indent=2)
@@ -2417,7 +2421,9 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[types.TextCont
 
         elif name == "mem_by_task_run":
             task_run_id = quote(arguments["task_run_id"])
-            response = await qontinui._request("GET", f"/observations/by-task-run/{task_run_id}")
+            response = await qontinui._request(
+                "GET", f"/observations/by-task-run/{task_run_id}"
+            )
             return [
                 types.TextContent(
                     type="text", text=json.dumps(response.__dict__, indent=2)
