@@ -2403,15 +2403,15 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[types.TextCont
 
         elif name == "mem_update":
             obs_id = arguments["id"]
-            payload: dict[str, Any] = {}
+            update_payload: dict[str, Any] = {}
             if arguments.get("title"):
-                payload["title"] = arguments["title"]
+                update_payload["title"] = arguments["title"]
             if arguments.get("content"):
-                payload["content"] = arguments["content"]
+                update_payload["content"] = arguments["content"]
             if arguments.get("observation_type"):
-                payload["observationType"] = arguments["observation_type"]
+                update_payload["observationType"] = arguments["observation_type"]
             response = await qontinui._request(
-                "PUT", f"/observations/{obs_id}", json_data=payload
+                "PUT", f"/observations/{obs_id}", json_data=update_payload
             )
             return [
                 types.TextContent(
