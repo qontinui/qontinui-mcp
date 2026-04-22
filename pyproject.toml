@@ -37,10 +37,6 @@ pytest = "^9"
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
 
-[tool.black]
-line-length = 88
-target-version = ["py312"]
-
 [tool.ruff]
 line-length = 88
 target-version = "py312"

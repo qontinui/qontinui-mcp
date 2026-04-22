@@ -822,7 +822,9 @@ async def build_analyze_automation_run_prompt(
             status = (
                 "[MATCH]"
                 if confidence > 0.8
-                else "[WEAK]" if confidence > 0.5 else "[FAIL]"
+                else "[WEAK]"
+                if confidence > 0.5
+                else "[FAIL]"
             )
             context_parts.append(
                 f"  {status} {match.get('template_name', 'Unknown')} - {confidence:.1%}"
