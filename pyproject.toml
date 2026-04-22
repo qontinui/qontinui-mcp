@@ -28,7 +28,6 @@ httpx = "^0.28.0"
 qontinui-schemas = { path = "../qontinui-schemas", develop = true }
 
 [tool.poetry.group.dev.dependencies]
-black = "^26"
 ruff = "^0.15"
 mypy = "^1.14"
 pytest = "^9"
