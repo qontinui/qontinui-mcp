@@ -3,7 +3,7 @@ name = "qontinui-mcp"
 version = "0.1.0"
 description = "Lightweight MCP server for Qontinui Runner - enables AI-driven visual automation"
 authors = ["Qontinui Team"]
-license = "MIT"
+license = "AGPL-3.0-or-later"
 readme = "README.md"
 homepage = "https://github.com/qontinui/qontinui-mcp"
 repository = "https://github.com/qontinui/qontinui-mcp"
@@ -11,7 +11,7 @@ keywords = ["mcp", "automation", "ai", "visual-automation", "qontinui"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
-    "License :: OSI Approved :: MIT License",
+    "License :: OSI Approved :: GNU Affero General Public License v3 or later (AGPLv3+)",
     "Programming Language :: Python :: 3.12",
     "Topic :: Software Development :: Testing",
     "Topic :: Software Development :: Libraries :: Python Modules",
