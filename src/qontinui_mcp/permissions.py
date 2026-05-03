@@ -245,6 +245,9 @@ TOOL_PERMISSIONS: dict[str, PermissionLevel] = {
     "load_state_machine": PermissionLevel.MODIFY,
     "execute_state_transition": PermissionLevel.EXECUTE,
     "navigate_to_states": PermissionLevel.EXECUTE,
+    # Scenario Projection tools (UI Bridge IR doc projections)
+    "project_scenarios": PermissionLevel.READ_ONLY,
+    "project_current_scenario": PermissionLevel.READ_ONLY,
     # GUI Config Pipeline tools
     "capture_gui_elements": PermissionLevel.EXECUTE,
     "capture_multi_state_gui_config": PermissionLevel.EXECUTE,

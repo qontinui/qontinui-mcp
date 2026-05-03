@@ -9,6 +9,7 @@ import shutil
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable
+from urllib.parse import quote
 
 import httpx
 from qontinui_schemas import utc_now
@@ -1681,6 +1682,47 @@ class QontinuiClient:
     async def get_sm_available_transitions(self) -> RunnerResponse:
         """Get transitions available from the current active states."""
         return await self._request("GET", "/state-machine/available-transitions")
+
+    # -------------------------------------------------------------------------
+    # Scenario Projection (UI Bridge IR Doc Projections)
+    # -------------------------------------------------------------------------
+
+    async def project_scenarios(self, ir_doc_id: str) -> RunnerResponse:
+        """Fetch the deterministic static scenario projection for an IR doc.
+
+        Returns a pure structural view of the IR document: states, their
+        outbound transitions, and required-element counts. Output is byte-
+        identical for the same IR (no live registry input).
+
+        Args:
+            ir_doc_id: Identifier of the IR document to project.
+                Same id space as /spec/page/{id}.
+
+        Returns:
+            RunnerResponse with a ScenarioProjection in `data`.
+        """
+        endpoint = f"/scenarios/projection?ir_doc_id={quote(ir_doc_id)}"
+        return await self._request("GET", endpoint)
+
+    async def project_current_scenario(self, ir_doc_id: str) -> RunnerResponse:
+        """Fetch the runtime-aware scenario projection (live registry).
+
+        Like project_scenarios, but augmented with the live page state:
+        which states are currently active, which transitions resolve in
+        the live registry (available), and which do not (blocked, with
+        the resolution failure cause). Non-deterministic by design — the
+        result depends on the live UI Bridge registry.
+
+        Args:
+            ir_doc_id: Identifier of the IR document. The runtime view is
+                computed against this IR's structure plus the live
+                UI Bridge registry.
+
+        Returns:
+            RunnerResponse with a CurrentScenarioProjection in `data`.
+        """
+        endpoint = f"/scenarios/current?ir_doc_id={quote(ir_doc_id)}"
+        return await self._request("GET", endpoint)
 
     # -------------------------------------------------------------------------
     # GUI Config Pipeline (Element-to-Image + Config Bridge)
