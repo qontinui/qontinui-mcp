@@ -1078,6 +1078,56 @@ TOOLS = [
             "properties": {},
         },
     ),
+    # Scenario Projection tools (UI Bridge IR doc projections)
+    types.Tool(
+        name="project_scenarios",
+        description=(
+            "Get a deterministic static scenario projection of an IR document - "
+            "the states, their outbound transitions, and required-element counts. "
+            "Useful for understanding the structure of a UI's state machine without "
+            "executing it. Returns byte-identical output for the same IR. "
+            "For runtime-aware projection (current state, available transitions), "
+            "use project_current_scenario instead."
+        ),
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "ir_doc_id": {
+                    "type": "string",
+                    "description": (
+                        "Identifier of the IR document to project. "
+                        "Same id space as /spec/page/{id}."
+                    ),
+                },
+            },
+            "required": ["ir_doc_id"],
+        },
+    ),
+    types.Tool(
+        name="project_current_scenario",
+        description=(
+            "Get a runtime-aware scenario projection - like project_scenarios, but "
+            "augmented with the live page state: which states are currently active, "
+            "which transitions resolve in the live registry (available), and which "
+            "do not (blocked, with the resolution failure cause). Non-deterministic "
+            "by design (depends on live page state). Use this to answer 'what can "
+            "the user do right now?'."
+        ),
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "ir_doc_id": {
+                    "type": "string",
+                    "description": (
+                        "Identifier of the IR document. The runtime view is "
+                        "computed against this IR's structure plus the live "
+                        "UI Bridge registry."
+                    ),
+                },
+            },
+            "required": ["ir_doc_id"],
+        },
+    ),
     # GUI Config Pipeline tools (element-to-image + config bridge)
     types.Tool(
         name="capture_gui_elements",
@@ -2311,6 +2361,45 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[types.TextCont
 
         elif name == "get_available_transitions":
             response = await qontinui.get_sm_available_transitions()
+            return [
+                types.TextContent(
+                    type="text", text=json.dumps(response.__dict__, indent=2)
+                )
+            ]
+
+        # Scenario Projection tools
+        elif name == "project_scenarios":
+            ir_doc_id = arguments.get("ir_doc_id", "")
+            if not ir_doc_id:
+                return [
+                    types.TextContent(
+                        type="text",
+                        text=json.dumps(
+                            {"success": False, "error": "ir_doc_id is required"},
+                            indent=2,
+                        ),
+                    )
+                ]
+            response = await qontinui.project_scenarios(ir_doc_id)
+            return [
+                types.TextContent(
+                    type="text", text=json.dumps(response.__dict__, indent=2)
+                )
+            ]
+
+        elif name == "project_current_scenario":
+            ir_doc_id = arguments.get("ir_doc_id", "")
+            if not ir_doc_id:
+                return [
+                    types.TextContent(
+                        type="text",
+                        text=json.dumps(
+                            {"success": False, "error": "ir_doc_id is required"},
+                            indent=2,
+                        ),
+                    )
+                ]
+            response = await qontinui.project_current_scenario(ir_doc_id)
             return [
                 types.TextContent(
                     type="text", text=json.dumps(response.__dict__, indent=2)
