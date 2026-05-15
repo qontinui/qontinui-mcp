@@ -1128,6 +1128,91 @@ TOOLS = [
             "required": ["ir_doc_id"],
         },
     ),
+    # Spec-Check tools (B-style spec verification against the live UI)
+    types.Tool(
+        name="check_page_spec",
+        description=(
+            "Run B-style spec verification against the live UI. Loads the page "
+            "spec at `page_id`, fetches the current UI Bridge snapshot, and "
+            "reports per-state match outcomes. Returns just the summary + "
+            "recommended state when `mode='summary'`; returns the full "
+            "SpecCheckResult when `mode='full'`."
+        ),
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "page_id": {
+                    "type": "string",
+                    "description": (
+                        "The spec page id (matches the directory under "
+                        "qontinui-runner/specs/pages/)."
+                    ),
+                },
+                "mode": {
+                    "type": "string",
+                    "enum": ["summary", "full"],
+                    "description": (
+                        "summary returns SpecCheckSummary + RecommendedState "
+                        "only; full returns the entire SpecCheckResult."
+                    ),
+                    "default": "summary",
+                },
+            },
+            "required": ["page_id"],
+        },
+    ),
+    types.Tool(
+        name="list_page_specs",
+        description=(
+            "Enumerate every page spec registered under "
+            "qontinui-runner/specs/pages/. Returns one entry per spec with id, "
+            "app name, and high-level config metadata (version, description, "
+            "group count). Useful for picking a page_id to pass to "
+            "check_page_spec."
+        ),
+        inputSchema={"type": "object", "properties": {}},
+    ),
+    types.Tool(
+        name="describe_page_spec",
+        description=(
+            "Read the bundled-page projection of a single spec, identified by "
+            "`page_id`. Returns the same shape the legacy "
+            "`*.spec.uibridge.json` files used: version, description, groups[], "
+            "metadata. Distinct from check_page_spec, which evaluates the spec "
+            "against the live UI."
+        ),
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "page_id": {
+                    "type": "string",
+                    "description": "The spec page id.",
+                },
+            },
+            "required": ["page_id"],
+        },
+    ),
+    types.Tool(
+        name="validate_page_spec",
+        description=(
+            "Validate the on-disk IR for a page spec against the G2 "
+            "distinctness rules: no empty criteria, no identical state "
+            "element-sets, no subset domination. Does NOT require a live app "
+            "- purely an IR-level check. Returns the DistinctnessReport: "
+            "`{ ok: bool, violations: [{ reason, ... }] }` "
+            "(reason in emptyCriteria | identicalStates | subsetDomination)."
+        ),
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "page_id": {
+                    "type": "string",
+                    "description": "The spec page id.",
+                },
+            },
+            "required": ["page_id"],
+        },
+    ),
     # GUI Config Pipeline tools (element-to-image + config bridge)
     types.Tool(
         name="capture_gui_elements",
@@ -2403,6 +2488,137 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[types.TextCont
             return [
                 types.TextContent(
                     type="text", text=json.dumps(response.__dict__, indent=2)
+                )
+            ]
+
+        # Spec-Check tools
+        elif name == "check_page_spec":
+            page_id = arguments.get("page_id", "")
+            if not page_id:
+                return [
+                    types.TextContent(
+                        type="text",
+                        text=json.dumps(
+                            {"success": False, "error": "page_id is required"},
+                            indent=2,
+                        ),
+                    )
+                ]
+            mode = arguments.get("mode", "summary")
+            response = await qontinui.check_page_spec(page_id)
+            body = response.data
+            if not response.success or not isinstance(body, dict):
+                # Surface the SpecError envelope (e.g. spec-not-found) or
+                # the transport error verbatim.
+                return [
+                    types.TextContent(
+                        type="text",
+                        text=json.dumps(
+                            body
+                            or {
+                                "ok": False,
+                                "reason": "request-failed",
+                                "error": response.error,
+                            },
+                            indent=2,
+                        ),
+                    )
+                ]
+            # An un-spec'd page returns 2xx-or-not with an {ok: false, ...}
+            # envelope — pass it through unchanged, do not paper over it.
+            if body.get("ok") is False:
+                return [types.TextContent(type="text", text=json.dumps(body, indent=2))]
+            if mode == "summary":
+                # SpecCheckSummary already carries `recommended_state` as a
+                # nested field, so dropping `state_results` (the heavy
+                # per-state breakdown) is sufficient for the summary contract.
+                summary_only = {
+                    "ok": True,
+                    "result_schema_version": body.get("result_schema_version"),
+                    "page_id": body.get("page_id"),
+                    "summary": body.get("summary"),
+                    "warnings": body.get("warnings", []),
+                }
+                return [
+                    types.TextContent(
+                        type="text", text=json.dumps(summary_only, indent=2)
+                    )
+                ]
+            return [types.TextContent(type="text", text=json.dumps(body, indent=2))]
+
+        elif name == "list_page_specs":
+            response = await qontinui.list_page_specs()
+            return [
+                types.TextContent(
+                    type="text",
+                    text=json.dumps(
+                        response.data
+                        if response.data is not None
+                        else {
+                            "ok": False,
+                            "reason": "request-failed",
+                            "error": response.error,
+                        },
+                        indent=2,
+                    ),
+                )
+            ]
+
+        elif name == "describe_page_spec":
+            page_id = arguments.get("page_id", "")
+            if not page_id:
+                return [
+                    types.TextContent(
+                        type="text",
+                        text=json.dumps(
+                            {"success": False, "error": "page_id is required"},
+                            indent=2,
+                        ),
+                    )
+                ]
+            response = await qontinui.describe_page_spec(page_id)
+            return [
+                types.TextContent(
+                    type="text",
+                    text=json.dumps(
+                        response.data
+                        if response.data is not None
+                        else {
+                            "ok": False,
+                            "reason": "request-failed",
+                            "error": response.error,
+                        },
+                        indent=2,
+                    ),
+                )
+            ]
+
+        elif name == "validate_page_spec":
+            page_id = arguments.get("page_id", "")
+            if not page_id:
+                return [
+                    types.TextContent(
+                        type="text",
+                        text=json.dumps(
+                            {"success": False, "error": "page_id is required"},
+                            indent=2,
+                        ),
+                    )
+                ]
+            response = await qontinui.validate_page_spec(page_id)
+            return [
+                types.TextContent(
+                    type="text",
+                    text=json.dumps(
+                        response.data
+                        if response.data is not None
+                        else {
+                            "ok": False,
+                            "reason": "request-failed",
+                            "error": response.error,
+                        },
+                        indent=2,
+                    ),
                 )
             ]
 
