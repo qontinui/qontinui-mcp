@@ -1725,6 +1725,116 @@ class QontinuiClient:
         return await self._request("GET", endpoint)
 
     # -------------------------------------------------------------------------
+    # Spec-Check (B-style spec verification against the live UI)
+    # -------------------------------------------------------------------------
+
+    async def _raw_request(
+        self,
+        method: str,
+        endpoint: str,
+        json_data: dict[str, Any] | None = None,
+        timeout: float = DEFAULT_TIMEOUT,
+    ) -> RunnerResponse:
+        """Make an HTTP request returning the verbatim response body.
+
+        Unlike ``_request``, this does NOT unwrap an ``{success, data, error}``
+        envelope. The spec-check / spec endpoints return their own response
+        shapes (``SpecCheckResult``, ``SpecError`` envelopes, the bundled-page
+        projection, ``DistinctnessReport``) which must reach the caller
+        unchanged. The full parsed JSON body is placed in ``data``.
+        """
+        client = await self._get_client()
+        url = f"{self.base_url}{endpoint}"
+
+        try:
+            if method == "GET":
+                response = await client.get(url, timeout=timeout)
+            elif method == "POST":
+                response = await client.post(url, json=json_data, timeout=timeout)
+            else:
+                return RunnerResponse(
+                    success=False, error=f"Unsupported method: {method}"
+                )
+
+            body = response.json()
+            # The runner returns non-2xx for un-spec'd pages (404
+            # spec-not-found, 400 invalid-page-id, etc.) with a structured
+            # SpecError body. Surface that body verbatim rather than masking
+            # it behind an HTTP-status error string.
+            if isinstance(body, dict):
+                return RunnerResponse(success=response.is_success, data=body)
+            return RunnerResponse(success=response.is_success, data={"result": body})
+        except httpx.ConnectError as e:
+            return RunnerResponse(
+                success=False,
+                error=(
+                    f"Cannot connect to runner at {url}. "
+                    f"Is qontinui-runner running? Error: {e}"
+                ),
+            )
+        except Exception as e:
+            return RunnerResponse(success=False, error=str(e))
+
+    async def check_page_spec(self, page_id: str) -> RunnerResponse:
+        """Run B-style spec verification against the live UI.
+
+        Loads the page spec at ``page_id``, fetches the current UI Bridge
+        snapshot, and forwards to ``POST /spec-check``. Returns the verbatim
+        ``SpecCheckResult`` body (or the ``{ok: false, reason: ...}`` envelope
+        for an un-spec'd page) in ``data``.
+
+        Args:
+            page_id: The spec page id (matches the directory under
+                qontinui-runner/specs/pages/).
+
+        Returns:
+            RunnerResponse whose ``data`` is the verbatim response body.
+        """
+        return await self._raw_request("POST", "/spec-check", {"page_id": page_id})
+
+    async def list_page_specs(self) -> RunnerResponse:
+        """Enumerate every page spec registered on disk.
+
+        Pure forwarder over ``GET /spec/list`` — no client-side transform.
+
+        Returns:
+            RunnerResponse whose ``data`` is the verbatim ``/spec/list`` body.
+        """
+        return await self._raw_request("GET", "/spec/list")
+
+    async def describe_page_spec(self, page_id: str) -> RunnerResponse:
+        """Read the bundled-page projection of a single spec.
+
+        Forwarder over ``GET /spec/page/{id}`` with the id URL-escaped
+        (path-traversal hardening — the backend also validates).
+
+        Args:
+            page_id: The spec page id.
+
+        Returns:
+            RunnerResponse whose ``data`` is the verbatim projection body.
+        """
+        endpoint = f"/spec/page/{quote(page_id, safe='')}"
+        return await self._raw_request("GET", endpoint)
+
+    async def validate_page_spec(self, page_id: str) -> RunnerResponse:
+        """Validate the on-disk IR for a page spec (G2 distinctness rules).
+
+        Forwarder over ``POST /spec/validate``. The runner's ``ValidateBody``
+        is ``#[serde(rename_all = "camelCase")]`` with no snake_case alias,
+        so the body field MUST be ``pageId`` — a ``page_id`` body silently
+        400s.
+
+        Args:
+            page_id: The spec page id.
+
+        Returns:
+            RunnerResponse whose ``data`` is the verbatim
+            ``DistinctnessReport`` body.
+        """
+        return await self._raw_request("POST", "/spec/validate", {"pageId": page_id})
+
+    # -------------------------------------------------------------------------
     # GUI Config Pipeline (Element-to-Image + Config Bridge)
     # -------------------------------------------------------------------------
 

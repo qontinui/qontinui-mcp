@@ -248,6 +248,11 @@ TOOL_PERMISSIONS: dict[str, PermissionLevel] = {
     # Scenario Projection tools (UI Bridge IR doc projections)
     "project_scenarios": PermissionLevel.READ_ONLY,
     "project_current_scenario": PermissionLevel.READ_ONLY,
+    # Spec-Check tools (B-style spec verification against the live UI)
+    "check_page_spec": PermissionLevel.READ_ONLY,
+    "list_page_specs": PermissionLevel.READ_ONLY,
+    "describe_page_spec": PermissionLevel.READ_ONLY,
+    "validate_page_spec": PermissionLevel.READ_ONLY,
     # GUI Config Pipeline tools
     "capture_gui_elements": PermissionLevel.EXECUTE,
     "capture_multi_state_gui_config": PermissionLevel.EXECUTE,
