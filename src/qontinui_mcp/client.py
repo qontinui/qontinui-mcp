@@ -26,13 +26,13 @@ EXECUTION_TIMEOUT = 300.0
 AUTOMATION_RESULTS_DIR = Path(
     os.environ.get(
         "QONTINUI_RESULTS_DIR",
-        "/mnt/c/Users/Joshua/Documents/qontinui_parent_directory/.automation-results",
+        "/mnt/c/Users/Joshua/Documents/qontinui-root/.automation-results",
     )
 )
 DEV_LOGS_DIR = Path(
     os.environ.get(
         "QONTINUI_DEV_LOGS_DIR",
-        "/mnt/c/Users/Joshua/Documents/qontinui_parent_directory/.dev-logs",
+        "/mnt/c/Users/Joshua/Documents/qontinui-root/.dev-logs",
     )
 )
 MAX_HISTORY_RUNS = 10
