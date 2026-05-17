@@ -112,18 +112,24 @@ def _patch_raw_http(
     return patch.object(client, "_get_client", AsyncMock(return_value=fake_http))
 
 
-def test_check_page_spec_posts_snake_case_page_id() -> None:
-    """check_page_spec → POST /spec-check with {"page_id": ...}."""
+def test_check_page_spec_posts_camel_case_page_id() -> None:
+    """check_page_spec → POST /spec-check with {"pageId": ...}.
+
+    The runner's /spec-check endpoint accepts camelCase since
+    2026-05-17 spec-check remediation (matching /spec/derive and
+    /spec/validate). The MCP tool's argument name is still snake_case
+    by Python convention.
+    """
     client = QontinuiClient(host="localhost", port=9876)
     capture: dict[str, Any] = {}
-    with _patch_raw_http(client, capture, {"page_id": "settings-general"}):
+    with _patch_raw_http(client, capture, {"pageId": "settings-general"}):
         result = asyncio.run(client.check_page_spec("settings-general"))
 
     assert capture["method"] == "POST"
     assert capture["url"].endswith("/spec-check")
-    assert capture["json"] == {"page_id": "settings-general"}
+    assert capture["json"] == {"pageId": "settings-general"}
     assert result.success is True
-    assert result.data == {"page_id": "settings-general"}
+    assert result.data == {"pageId": "settings-general"}
 
 
 def test_list_page_specs_hits_spec_list() -> None:

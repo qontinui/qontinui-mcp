@@ -1790,7 +1790,7 @@ class QontinuiClient:
         Returns:
             RunnerResponse whose ``data`` is the verbatim response body.
         """
-        return await self._raw_request("POST", "/spec-check", {"page_id": page_id})
+        return await self._raw_request("POST", "/spec-check", {"pageId": page_id})
 
     async def list_page_specs(self) -> RunnerResponse:
         """Enumerate every page spec registered on disk.
