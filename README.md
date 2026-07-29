@@ -21,11 +21,21 @@ Add to your MCP configuration:
   "mcpServers": {
     "qontinui": {
       "command": "qontinui-mcp",
-      "args": []
+      "args": [],
+      "env": {
+        "QONTINUI_ROOT": "/path/to/your/qontinui-root"
+      }
     }
   }
 }
 ```
+
+`QONTINUI_ROOT` should point at the directory holding your qontinui repos. It
+is where `.automation-results` and `.dev-logs` are resolved from. **Set it** —
+an MCP server inherits whatever working directory the AI client launched it
+from, so without it the server falls back to that arbitrary directory (and logs
+a warning): results and logs would be read from, and written to, wherever the
+client happened to start.
 
 3. **Run workflows via AI**
 
@@ -43,8 +53,9 @@ Environment variables:
 |----------|-------------|---------|
 | `QONTINUI_RUNNER_HOST` | Runner host address | Auto-detected (WSL-aware) |
 | `QONTINUI_RUNNER_PORT` | Runner HTTP port | `9876` |
-| `QONTINUI_RESULTS_DIR` | Directory for automation results | `.automation-results` |
-| `QONTINUI_DEV_LOGS_DIR` | Directory for dev logs | `.dev-logs` |
+| `QONTINUI_ROOT` | Workspace root the two dirs below resolve against | CWD (warns — see above) |
+| `QONTINUI_RESULTS_DIR` | Directory for automation results | `$QONTINUI_ROOT/.automation-results` |
+| `QONTINUI_DEV_LOGS_DIR` | Directory for dev logs | `$QONTINUI_ROOT/.dev-logs` |
 
 ## Features
 

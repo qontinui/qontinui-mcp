@@ -20,6 +20,7 @@ DEFAULT_RUNNER_PORT = 9876
 DEFAULT_TIMEOUT = 30.0
 EXECUTION_TIMEOUT = 300.0
 
+
 # Results directory for QA feedback loop.
 # This is the same location used by qontinui-runner-mcp.
 #
@@ -32,15 +33,39 @@ EXECUTION_TIMEOUT = 300.0
 # who had not set the env vars silently read an empty results/log set rather
 # than failing.
 def _workspace_relative(env_var: str, subdir: str) -> Path:
-    """Resolve a workspace-relative dir: explicit env var, else $QONTINUI_ROOT, else CWD."""
+    """Resolve a workspace-relative dir: explicit env var, else $QONTINUI_ROOT, else CWD.
+
+    The CWD fallback is a LAST RESORT and warns. An MCP server is launched by
+    the AI client, so its working directory is whatever that client happened to
+    use — arbitrary, and not necessarily a qontinui workspace. This module both
+    reads from these dirs (empty results look like "no runs" rather than
+    "wrong directory") and writes to them (`ensure_results_dirs` creates
+    subdirectories, and the results reset unlinks inside `latest/`), so an
+    unset workspace scatters state into unpredictable places.
+
+    Set QONTINUI_ROOT — or the specific override — in the MCP server's `env`
+    block; see the README's configuration section.
+    """
     explicit = os.environ.get(env_var)
     if explicit:
         return Path(explicit)
     root = os.environ.get("QONTINUI_ROOT")
-    return (Path(root) if root else Path.cwd()) / subdir
+    if root:
+        return Path(root) / subdir
+    logger.warning(
+        "Neither %s nor QONTINUI_ROOT is set; falling back to the current working "
+        "directory (%s) for %s. Set QONTINUI_ROOT in the MCP server's env block so "
+        "results and logs resolve to your qontinui workspace.",
+        env_var,
+        Path.cwd(),
+        subdir,
+    )
+    return Path.cwd() / subdir
 
 
-AUTOMATION_RESULTS_DIR = _workspace_relative("QONTINUI_RESULTS_DIR", ".automation-results")
+AUTOMATION_RESULTS_DIR = _workspace_relative(
+    "QONTINUI_RESULTS_DIR", ".automation-results"
+)
 DEV_LOGS_DIR = _workspace_relative("QONTINUI_DEV_LOGS_DIR", ".dev-logs")
 MAX_HISTORY_RUNS = 10
 
