@@ -20,21 +20,28 @@ DEFAULT_RUNNER_PORT = 9876
 DEFAULT_TIMEOUT = 30.0
 EXECUTION_TIMEOUT = 300.0
 
-# Results directory for QA feedback loop
-# This is the same location used by qontinui-runner-mcp
-# Paths are configurable via environment variables with WSL-style defaults
-AUTOMATION_RESULTS_DIR = Path(
-    os.environ.get(
-        "QONTINUI_RESULTS_DIR",
-        "/mnt/c/Users/Joshua/Documents/qontinui-root/.automation-results",
-    )
-)
-DEV_LOGS_DIR = Path(
-    os.environ.get(
-        "QONTINUI_DEV_LOGS_DIR",
-        "/mnt/c/Users/Joshua/Documents/qontinui-root/.dev-logs",
-    )
-)
+# Results directory for QA feedback loop.
+# This is the same location used by qontinui-runner-mcp.
+#
+# Both are configurable via environment variables. The DEFAULTS are derived
+# from $QONTINUI_ROOT, falling back to the current working directory — never a
+# literal user profile. They used to default to
+# `/mnt/c/Users/<a-specific-account>/Documents/qontinui-root/...`, which named
+# one developer's WSL mount: on every other machine (and every other Windows
+# account) the default pointed at a directory that does not exist, so a caller
+# who had not set the env vars silently read an empty results/log set rather
+# than failing.
+def _workspace_relative(env_var: str, subdir: str) -> Path:
+    """Resolve a workspace-relative dir: explicit env var, else $QONTINUI_ROOT, else CWD."""
+    explicit = os.environ.get(env_var)
+    if explicit:
+        return Path(explicit)
+    root = os.environ.get("QONTINUI_ROOT")
+    return (Path(root) if root else Path.cwd()) / subdir
+
+
+AUTOMATION_RESULTS_DIR = _workspace_relative("QONTINUI_RESULTS_DIR", ".automation-results")
+DEV_LOGS_DIR = _workspace_relative("QONTINUI_DEV_LOGS_DIR", ".dev-logs")
 MAX_HISTORY_RUNS = 10
 
 
