@@ -312,7 +312,32 @@ class QontinuiClient:
         json_data: dict[str, Any] | None = None,
         timeout: float = DEFAULT_TIMEOUT,
     ) -> RunnerResponse:
-        """Make an HTTP request to the runner API."""
+        """Make an HTTP request to the runner API.
+
+        Most runner endpoints reply with the ``{success, data, error}``
+        envelope, which is unwrapped below. Some endpoints do NOT (e.g.
+        ``GET /task-runs/running``, which returns its own
+        ``{"scope", "task_runs"}`` shape rather than being wrapped in
+        ``{success, data, error}``) — this method must not assume every 2xx
+        body is that envelope.
+
+        Shape handling, in order:
+
+        1. A dict that HAS a top-level ``"success"`` key: treated as the
+           standard envelope and unwrapped as before.
+        2. A dict that LACKS a ``"success"`` key: treated as the payload
+           itself. The whole dict becomes ``data`` and ``success`` is set
+           to ``True`` (the HTTP call already succeeded — ``raise_for_status``
+           would have raised otherwise).
+        3. A non-dict body (e.g. a bare JSON array): wrapped as
+           ``{"result": <body>}`` so ``data`` stays a dict, mirroring
+           ``_raw_request``'s convention below.
+
+        This deliberately never produces ``RunnerResponse(success=False,
+        data=None, error=None)`` for a response that parsed successfully —
+        an unexplained failure with no error message is strictly worse than
+        guessing the shape wrong in an inspectable way.
+        """
         client = await self._get_client()
         url = f"{self.base_url}{endpoint}"
 
@@ -332,11 +357,16 @@ class QontinuiClient:
 
             response.raise_for_status()
             data = response.json()
-            return RunnerResponse(
-                success=data.get("success", False),
-                data=data.get("data"),
-                error=data.get("error"),
-            )
+
+            if isinstance(data, dict) and "success" in data:
+                return RunnerResponse(
+                    success=data.get("success", False),
+                    data=data.get("data"),
+                    error=data.get("error"),
+                )
+            if isinstance(data, dict):
+                return RunnerResponse(success=True, data=data)
+            return RunnerResponse(success=True, data={"result": data})
         except httpx.ConnectError as e:
             return RunnerResponse(
                 success=False,
@@ -528,12 +558,52 @@ class QontinuiClient:
         """Get all task runs, optionally filtered by status.
 
         Args:
-            status: Optional status filter ('running', 'complete', 'failed', 'stopped')
+            status: Optional status filter ('running', 'complete', 'failed', 'stopped').
+                Only 'running' changes which endpoint is hit (see below); any
+                other value, including None, hits the same `/task-runs` list
+                (the runner does not support server-side status filtering
+                there today).
+
+        Returns:
+            On success, ``data`` is always
+            ``{"task_runs": list[dict], "scope": str | None}`` regardless of
+            which endpoint served it, so callers read the task-run list the
+            same way no matter what `status` was requested:
+
+            - `status == "running"` hits `GET /task-runs/running`, which
+              returns its own ``{"scope", "task_runs"}`` envelope (NOT
+              `{success, data, error}`). `scope` is a caution string the
+              runner attaches — this is a port-filtered *workflow task-run
+              ledger*, not a session census, so an empty `task_runs` list
+              must never be read as "the runner is idle". It is passed
+              through unchanged when present, else `None`.
+            - Any other `status` hits `GET /task-runs`, which stays the
+              plain `{success, data: [TaskRun, ...]}` envelope. `scope` is
+              always `None` there — the caution does not apply to the
+              unfiltered ledger.
         """
-        endpoint = "/task-runs"
         if status == "running":
-            endpoint = "/task-runs/running"
-        return await self._request("GET", endpoint)
+            response = await self._request("GET", "/task-runs/running")
+            if not response.success:
+                return response
+            payload = response.data if isinstance(response.data, dict) else {}
+            return RunnerResponse(
+                success=True,
+                data={
+                    "task_runs": payload.get("task_runs", []),
+                    "scope": payload.get("scope"),
+                },
+            )
+
+        response = await self._request("GET", "/task-runs")
+        if not response.success:
+            return response
+        task_runs: list[Any] = (
+            response.data if isinstance(response.data, list) else []
+        )
+        return RunnerResponse(
+            success=True, data={"task_runs": task_runs, "scope": None}
+        )
 
     async def get_task_run(self, task_id: str) -> RunnerResponse:
         """Get a specific task run with full details including execution_steps_json.

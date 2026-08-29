@@ -1767,9 +1767,27 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[types.TextCont
         elif name == "get_task_runs":
             status = arguments.get("status")
             response = await qontinui.get_task_runs(status=status)
+            # `response.data`, when present, is always
+            # {"task_runs": [...], "scope": str | None} (see
+            # QontinuiClient.get_task_runs). Surface `scope` explicitly at
+            # the top level when the runner supplied one -- it is a caution
+            # string ("workflow task-runs on API port 9876; NOT a session
+            # census...") attached to `/task-runs/running` specifically so
+            # an AI agent reading an empty task_runs list does not conclude
+            # the runner is idle. Dropping it here would defeat the point
+            # of the envelope change.
+            task_runs_result: dict[str, Any] = {
+                "success": response.success,
+                "error": response.error,
+            }
+            if response.data is not None:
+                task_runs_result["task_runs"] = response.data.get("task_runs", [])
+                scope = response.data.get("scope")
+                if scope is not None:
+                    task_runs_result["scope"] = scope
             return [
                 types.TextContent(
-                    type="text", text=json.dumps(response.__dict__, indent=2)
+                    type="text", text=json.dumps(task_runs_result, indent=2)
                 )
             ]
 
