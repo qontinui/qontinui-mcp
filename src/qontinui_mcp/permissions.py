@@ -254,8 +254,6 @@ TOOL_PERMISSIONS: dict[str, PermissionLevel] = {
     "describe_page_spec": PermissionLevel.READ_ONLY,
     "validate_page_spec": PermissionLevel.READ_ONLY,
     # GUI Config Pipeline tools
-    "capture_gui_elements": PermissionLevel.EXECUTE,
-    "capture_multi_state_gui_config": PermissionLevel.EXECUTE,
     "build_gui_config": PermissionLevel.MODIFY,
     # DANGEROUS tools - can disrupt execution
     "stop_execution": PermissionLevel.DANGEROUS,

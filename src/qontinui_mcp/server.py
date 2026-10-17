@@ -1215,118 +1215,12 @@ TOOLS = [
     ),
     # GUI Config Pipeline tools (element-to-image + config bridge)
     types.Tool(
-        name="capture_gui_elements",
-        description="Capture element images from the runner's current UI page. "
-        "Gets a UI Bridge snapshot (element positions) and a screenshot, then "
-        "crops each element into a base64 PNG image. Returns element images with "
-        "metadata (id, label, type, dimensions, base64 data). "
-        "Use this to build visual GUI automation configs from live UI.",
-        inputSchema={
-            "type": "object",
-            "properties": {
-                "window_offset_x": {
-                    "type": "integer",
-                    "description": "X offset from monitor origin to webview content area. Default: 0.",
-                    "default": 0,
-                },
-                "window_offset_y": {
-                    "type": "integer",
-                    "description": "Y offset from monitor origin to webview content area. Default: 0.",
-                    "default": 0,
-                },
-                "scale_factor": {
-                    "type": "number",
-                    "description": "DPI scale factor (e.g. 2.0 for Retina). Default: 1.0.",
-                    "default": 1.0,
-                },
-                "category_filter": {
-                    "type": "array",
-                    "items": {"type": "string"},
-                    "description": "Only include elements in these categories (e.g. ['interactive']).",
-                },
-                "min_element_size": {
-                    "type": "integer",
-                    "description": "Minimum element width/height in pixels. Default: 4.",
-                    "default": 4,
-                },
-                "padding": {
-                    "type": "integer",
-                    "description": "Extra pixels around each element crop. Default: 0.",
-                    "default": 0,
-                },
-            },
-        },
-    ),
-    types.Tool(
-        name="capture_multi_state_gui_config",
-        description="Capture a complete multi-state GUI automation config in one call. "
-        "Walks through a sequence of interactions (click, scroll), capturing "
-        "screenshots and element snapshots at each step. Automatically diffs "
-        "element sets to assign only NEW elements to each state, crops images, "
-        "builds transitions, and produces a complete QontinuiConfig. "
-        "Much simpler than calling capture_gui_elements + build_gui_config manually.",
-        inputSchema={
-            "type": "object",
-            "properties": {
-                "name": {
-                    "type": "string",
-                    "description": "Config name.",
-                },
-                "interactions": {
-                    "type": "array",
-                    "items": {
-                        "type": "object",
-                        "properties": {
-                            "action_type": {
-                                "type": "string",
-                                "description": "Action: 'initial' (no action, just capture), "
-                                "'click', or 'scroll'.",
-                                "enum": ["initial", "click", "scroll"],
-                            },
-                            "target": {
-                                "type": "string",
-                                "description": "Element ID to act on (not needed for 'initial').",
-                            },
-                            "state_name": {
-                                "type": "string",
-                                "description": "Human-readable name for this state.",
-                            },
-                            "wait_seconds": {
-                                "type": "number",
-                                "description": "Seconds to wait after action before capture. Default: 1.0.",
-                                "default": 1.0,
-                            },
-                        },
-                        "required": ["action_type", "state_name"],
-                    },
-                    "description": "Ordered list of interactions. First should be 'initial'.",
-                },
-                "min_element_size": {
-                    "type": "integer",
-                    "description": "Minimum element width/height in pixels. Default: 4.",
-                    "default": 4,
-                },
-                "description": {
-                    "type": "string",
-                    "description": "Optional config description.",
-                },
-                "similarity": {
-                    "type": "number",
-                    "description": "Default similarity threshold for pattern matching. Default: 0.85.",
-                    "default": 0.85,
-                },
-            },
-            "required": ["name", "interactions"],
-        },
-    ),
-    types.Tool(
         name="build_gui_config",
         description="Build a visual GUI automation config (QontinuiConfig) from captured "
         "element images and state/transition definitions. The output is a complete "
         "JSON config with base64-encoded template images, ready for import into "
         "the web's State Machine page at /automation-builder/states. "
-        "Use capture_gui_elements first to get element images, then define states "
-        "and transitions referencing those element IDs.",
+        "Define states and transitions referencing the element IDs in element_images.",
         inputSchema={
             "type": "object",
             "properties": {
@@ -1386,8 +1280,7 @@ TOOLS = [
                 },
                 "element_images": {
                     "type": "object",
-                    "description": "Mapping of element_id -> {base64_png, width, height, sha256, label}. "
-                    "Typically the output of capture_gui_elements.",
+                    "description": "Mapping of element_id -> {base64_png, width, height, sha256, label}.",
                 },
                 "description": {
                     "type": "string",
@@ -2641,12 +2534,6 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[types.TextCont
             ]
 
         # GUI Config Pipeline tools
-        elif name == "capture_gui_elements":
-            return await _handle_capture_gui_elements(qontinui, arguments)
-
-        elif name == "capture_multi_state_gui_config":
-            return await _handle_capture_multi_state_gui_config(qontinui, arguments)
-
         elif name == "build_gui_config":
             return await _handle_build_gui_config(qontinui, arguments)
 
@@ -3293,66 +3180,6 @@ async def get_prompt(
 # ---------------------------------------------------------------------------
 # GUI Config Pipeline handlers
 # ---------------------------------------------------------------------------
-
-
-async def _handle_capture_gui_elements(
-    qontinui: QontinuiClient, arguments: dict[str, Any]
-) -> list[types.TextContent]:
-    """Capture element images from the runner's current UI page."""
-    try:
-        window_offset_x = int(arguments.get("window_offset_x", 0))
-        window_offset_y = int(arguments.get("window_offset_y", 0))
-        scale_factor = float(arguments.get("scale_factor", 1.0))
-        min_element_size = int(arguments.get("min_element_size", 4))
-        padding = int(arguments.get("padding", 0))
-    except (ValueError, TypeError) as e:
-        return [
-            types.TextContent(
-                type="text",
-                text=json.dumps(
-                    {"success": False, "error": f"Invalid numeric argument: {e}"}
-                ),
-            )
-        ]
-    response = await qontinui.capture_gui_elements(
-        window_offset_x=window_offset_x,
-        window_offset_y=window_offset_y,
-        scale_factor=scale_factor,
-        category_filter=arguments.get("category_filter"),
-        min_element_size=min_element_size,
-        padding=padding,
-    )
-    return [
-        types.TextContent(type="text", text=json.dumps(response.__dict__, indent=2))
-    ]
-
-
-async def _handle_capture_multi_state_gui_config(
-    qontinui: QontinuiClient, arguments: dict[str, Any]
-) -> list[types.TextContent]:
-    """Capture a complete multi-state GUI config in one call."""
-    name = arguments.get("name", "Untitled Multi-State Config")
-    interactions = arguments.get("interactions", [])
-    if not interactions:
-        return [
-            types.TextContent(
-                type="text",
-                text=json.dumps(
-                    {"success": False, "error": "interactions list is required"}
-                ),
-            )
-        ]
-
-    response = await qontinui.capture_multi_state_gui_config(
-        name=name,
-        interactions=interactions,
-        min_element_size=int(arguments.get("min_element_size", 4)),
-        description=arguments.get("description", ""),
-        similarity=float(arguments.get("similarity", 0.85)),
-    )
-    return [
-        types.TextContent(type="text", text=json.dumps(response.__dict__, indent=2))
-    ]
 
 
 async def _handle_build_gui_config(

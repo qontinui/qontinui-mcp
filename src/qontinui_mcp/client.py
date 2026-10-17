@@ -1940,57 +1940,6 @@ class QontinuiClient:
     # GUI Config Pipeline (Element-to-Image + Config Bridge)
     # -------------------------------------------------------------------------
 
-    async def capture_gui_elements(
-        self,
-        window_offset_x: int = 0,
-        window_offset_y: int = 0,
-        scale_factor: float = 1.0,
-        category_filter: list[str] | None = None,
-        min_element_size: int = 4,
-        padding: int = 0,
-    ) -> RunnerResponse:
-        """Capture element images from the current UI page.
-
-        Combines UI Bridge snapshot + screenshot capture + element cropping
-        into a single server-side operation.
-        """
-        payload: dict[str, Any] = {
-            "window_offset_x": window_offset_x,
-            "window_offset_y": window_offset_y,
-            "scale_factor": scale_factor,
-            "min_element_size": min_element_size,
-            "padding": padding,
-        }
-        if category_filter:
-            payload["category_filter"] = category_filter
-        return await self._request(
-            "POST", "/gui-config/capture-elements", payload, timeout=30.0
-        )
-
-    async def capture_multi_state_gui_config(
-        self,
-        name: str,
-        interactions: list[dict[str, Any]],
-        min_element_size: int = 4,
-        description: str = "",
-        similarity: float = 0.85,
-    ) -> RunnerResponse:
-        """Capture a complete multi-state GUI config in one call.
-
-        Walks through interactions, captures screenshots + snapshots at each step,
-        diffs element sets, crops images, and builds a complete QontinuiConfig.
-        """
-        payload: dict[str, Any] = {
-            "name": name,
-            "interactions": interactions,
-            "min_element_size": min_element_size,
-            "description": description,
-            "similarity": similarity,
-        }
-        return await self._request(
-            "POST", "/gui-config/capture-multi-state", payload, timeout=120.0
-        )
-
     async def build_gui_config(
         self,
         name: str,
