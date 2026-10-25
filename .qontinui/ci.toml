@@ -1,0 +1,58 @@
+# .qontinui/ci.toml — the CI-node manifest for qontinui-mcp.
+#
+# This repo has no GitHub Actions workflow, so the CI-node lane this manifest
+# drives is its only CI. It exists because nothing caught poetry.lock
+# drifting from pyproject.toml: black was removed from the dev group and the lock was left
+# stale, so `poetry install` refused on every fresh checkout until #12
+# relocked it. The `lock-fresh` step below is the guard against a repeat.
+#
+# The [[siblings]] declaration does double duty: the CI-node executor
+# materialises it next to this repo's checkout, and `POST /agents/allocate`
+# reads the same declaration to provision it beside an agent worktree. Before
+# it existed, an allocated qontinui-mcp worktree had no qontinui-schemas next
+# to it, and `poetry install` / `mypy` could not run there at all.
+version = 1
+
+[[siblings]]
+# pyproject.toml: `qontinui-schemas = { path = "../qontinui-schemas",
+# develop = true }`, and [tool.mypy] `mypy_path = "../qontinui-schemas/src"`.
+# Both resolve to a peer of this checkout, which is where the executor puts
+# it. `declared-adaptation` (the default, spelled out) because schemas is
+# co-evolved with this repo rather than consumed as a published artifact, so a
+# breaking schema change can be dispatched against its paired schemas PR.
+# `lock-fresh` hashes only THIS repo's pyproject.toml, so it cannot see a
+# schemas version bump or a new schemas dependency; that surfaces later, as an
+# import error in `typecheck` or `test`.
+repo = "qontinui/qontinui-schemas"
+pin = "declared-adaptation"
+
+[[tools]]
+# Every step runs poetry, so the runner provisions it rather than trusting the
+# node's PATH. 2.3.2 is the release that wrote poetry.lock (lock-version 2.1);
+# `check --lock` needs poetry >= 1.6.
+name = "poetry"
+version = "2.3.2"
+
+[[steps]]
+# A stale lock fails `install` too, with the same message; this step fails
+# first and cheaply, before any venv is built.
+name = "lock-fresh"
+command = ["poetry", "check", "--lock"]
+
+[[steps]]
+name = "install"
+command = ["poetry", "install", "--no-interaction", "--no-ansi"]
+timeout_secs = 3600
+
+[[steps]]
+name = "lint"
+command = ["poetry", "run", "ruff", "check", "src", "tests"]
+
+[[steps]]
+# strict comes from [tool.mypy] in pyproject.toml.
+name = "typecheck"
+command = ["poetry", "run", "mypy", "src"]
+
+[[steps]]
+name = "test"
+command = ["poetry", "run", "pytest", "-q"]
