@@ -81,12 +81,21 @@ which must be checked out next to this one (`../qontinui-schemas`). The checks
 CI runs are declared in `.qontinui/ci.toml`; run the same ones locally:
 
 ```bash
+# Setup: schemas must sit beside this checkout
+git clone https://github.com/qontinui/qontinui-schemas
+git clone https://github.com/qontinui/qontinui-mcp
+cd qontinui-mcp
+
+# The CI checks
 poetry check --lock                       # poetry.lock matches pyproject.toml
 poetry install
 poetry run ruff check src tests           # lint
 poetry run ruff format --check src tests  # format
 poetry run mypy src tests                 # strict typecheck
 poetry run pytest -q
+
+# Run the stdio MCP server (it waits for a client; see Quick Start for config)
+poetry run qontinui-mcp
 ```
 
 With [pre-commit](https://pre-commit.com) installed (it is not in the dev group,
@@ -382,26 +391,6 @@ Tools for interacting with websites that support the AWAS standard.
 
 # Debug image recognition
 "Debug the template matching for the 'submit_button' template"
-```
-
-## Development
-
-```bash
-# Clone
-git clone https://github.com/qontinui/qontinui-mcp
-cd qontinui-mcp
-
-# Install dependencies
-poetry install
-
-# Run server locally
-poetry run qontinui-mcp
-
-# Run type checking
-poetry run mypy src/
-
-# Run linting
-poetry run ruff check src/
 ```
 
 ## Architecture
