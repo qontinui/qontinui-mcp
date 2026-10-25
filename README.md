@@ -74,6 +74,25 @@ request whose `Host` is neither a loopback name with the runner's bound port nor
   every client that can reach the forwarded address arrives at the runner as
   `127.0.0.1`, with a local caller's access.
 
+## Development
+
+The repo path-depends on [`qontinui-schemas`](https://github.com/qontinui/qontinui-schemas),
+which must be checked out next to this one (`../qontinui-schemas`). The checks
+CI runs are declared in `.qontinui/ci.toml`; run the same ones locally:
+
+```bash
+poetry check --lock                       # poetry.lock matches pyproject.toml
+poetry install
+poetry run ruff check src tests           # lint
+poetry run ruff format --check src tests  # format
+poetry run mypy src tests                 # strict typecheck
+poetry run pytest -q
+```
+
+With [pre-commit](https://pre-commit.com) installed (it is not in the dev group,
+e.g. `pipx install pre-commit`), `pre-commit install` runs ruff (lint + format)
+and mypy on every commit.
+
 ## Features
 
 ### Area A: SSE Event Streaming

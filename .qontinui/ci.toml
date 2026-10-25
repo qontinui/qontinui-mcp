@@ -49,9 +49,16 @@ name = "lint"
 command = ["poetry", "run", "ruff", "check", "src", "tests"]
 
 [[steps]]
-# strict comes from [tool.mypy] in pyproject.toml.
+# CONTRIBUTING.md promises that CI rejects unformatted code; this is the step
+# that keeps the promise. ruff is the formatter here (black was dropped).
+name = "format"
+command = ["poetry", "run", "ruff", "format", "--check", "src", "tests"]
+
+[[steps]]
+# strict comes from [tool.mypy] in pyproject.toml. tests is included because
+# the pre-commit mypy hook already checks it, and CI should not be laxer.
 name = "typecheck"
-command = ["poetry", "run", "mypy", "src"]
+command = ["poetry", "run", "mypy", "src", "tests"]
 
 [[steps]]
 name = "test"

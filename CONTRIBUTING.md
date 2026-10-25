@@ -31,7 +31,7 @@ This repository follows the conventions documented in `CLAUDE.md` (project root)
 - Edit existing files in preference to creating new ones; keep changes scoped to the task.
 - No comments unless the *why* is non-obvious. Don't narrate what well-named code already says.
 - No backwards-compatibility shims unless explicitly requested.
-- For Python: Black + ruff. For TypeScript/JavaScript: project's Prettier + ESLint config. For Rust: `cargo fmt` + `cargo clippy`.
+- For Python: ruff (lint + format). For TypeScript/JavaScript: project's Prettier + ESLint config. For Rust: `cargo fmt` + `cargo clippy`.
 - Run the test suite before opening a PR. CI will reject unformatted or lint-failing code.
 
 ## Submitting a change

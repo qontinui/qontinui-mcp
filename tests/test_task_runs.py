@@ -269,9 +269,7 @@ def _build_mock_client(get_task_runs_response: RunnerResponse) -> MagicMock:
 def test_call_tool_get_task_runs_surfaces_scope_when_present() -> None:
     scope_text = "workflow task-runs on API port 9876; NOT a session census"
     mock_client = _build_mock_client(
-        RunnerResponse(
-            success=True, data={"task_runs": [], "scope": scope_text}
-        )
+        RunnerResponse(success=True, data={"task_runs": [], "scope": scope_text})
     )
 
     with patch("qontinui_mcp.server.get_client", return_value=mock_client):

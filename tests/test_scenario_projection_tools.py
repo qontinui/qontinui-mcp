@@ -145,9 +145,7 @@ def test_call_tool_project_scenarios_dispatches_correctly() -> None:
     mock_client = _build_mock_client(project_scenarios_response=expected)
 
     with patch("qontinui_mcp.server.get_client", return_value=mock_client):
-        result = asyncio.run(
-            call_tool("project_scenarios", {"ir_doc_id": "doc-1"})
-        )
+        result = asyncio.run(call_tool("project_scenarios", {"ir_doc_id": "doc-1"}))
 
     mock_client.project_scenarios.assert_awaited_once_with("doc-1")
     mock_client.project_current_scenario.assert_not_called()
