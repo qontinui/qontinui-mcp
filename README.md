@@ -51,11 +51,28 @@ Environment variables:
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `QONTINUI_RUNNER_HOST` | Runner host address | Auto-detected (WSL-aware) |
+| `QONTINUI_RUNNER_HOST` | Runner host address. The runner listens on the IPv4 loopback only; see [Reaching a Windows runner from WSL](#reaching-a-windows-runner-from-wsl). | `127.0.0.1` |
 | `QONTINUI_RUNNER_PORT` | Runner HTTP port | `9876` |
 | `QONTINUI_ROOT` | Workspace root the two dirs below resolve against | CWD (warns — see above) |
 | `QONTINUI_RESULTS_DIR` | Directory for automation results | `$QONTINUI_ROOT/.automation-results` |
 | `QONTINUI_DEV_LOGS_DIR` | Directory for dev logs | `$QONTINUI_ROOT/.dev-logs` |
+
+#### Reaching a Windows runner from WSL
+
+The runner binds `127.0.0.1` only, and its Host gate refuses, among others, a
+request whose `Host` is neither a loopback name with the runner's bound port nor a
+`QONTINUI_RUNNER_ALLOWED_HOSTS` entry (`403 HOST_NOT_LOOPBACK`).
+
+- **WSL1, or WSL2 in mirrored networking mode** (`networkingMode=mirrored` in
+  `.wslconfig`) shares the Windows loopback, so the default works. Every
+  process in every WSL distro then reaches the runner as a loopback caller,
+  credential routes included, so use it only where you trust every WSL user
+  and container on the machine.
+- **WSL2 in NAT mode** (the default) cannot reach the runner, because the runner
+  listens on no address WSL can reach. Switch to mirrored
+  mode. Forwarding a Windows port to the runner is not a supported setup:
+  every client that can reach the forwarded address arrives at the runner as
+  `127.0.0.1`, with a local caller's access.
 
 ## Features
 
